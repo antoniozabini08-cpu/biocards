@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Biocards</title>
+
+<!-- Estilos simples só para visualização -->
+<style>
+body {
+  font-family: Arial;
+  min-height: 100vh;
+  margin: 0;
+
+  /*display: flex;
+  align-items: center;
+  justify-content: center;*/
+}
+
+.hidden {
+  display: none;
+}
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-container h2 {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+#auth {
+  width: 100%;
+  max-width: 400px;
+  padding: 30px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-align: center;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  box-sizing: border-box;
+}
+
+button {
+  margin: 6px;
+  padding: 8px 16px;
+}
+/* ======================
+   ESTUDO — NOVO LAYOUT
+====================== */
+
+.study {
+  max-width: 500px;
+  width: 100%;
+  padding: 20px;
+
+  /*display: flex;*/
+  flex-direction: column;
+  align-items: center;
+
+  text-align: center;
+}
+
+
+.study-header {
+  margin-bottom: 20px;
+}
+
+.progress {
+  font-size: 14px;
+  color: #666;
+}
+
+.card-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card {
+  width: 100%;
+  min-height: 140px;
+  padding: 30px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  font-size: 18px;
+  background: #fafafa;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.show-btn {
+  margin: 20px 0;
+  padding: 10px 200px;
+  font-size: 16px;
+}
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  max-width: 500px;
+}
+
+
+.actions button {
+  flex: 1;
+  padding: 12px;
+  font-size: 16px;
+}
+
+.actions .wrong {
+  background: #f8d7da;
+}
+
+.actions .right {
+  background: #d4edda;
+}
+button {
+  cursor: pointer;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+/* ======================
+   LAYOUT COM SIDEBAR
+====================== */
+.layout {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  border-right: 1px solid #ddd;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.sidebar h3 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar li {
+  padding: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.sidebar li:hover {
+  background: #706b6bfb;
+}
+.sidebar li {
+  transition: background 0.15s ease;
+}
+
+.sidebar li:hover {
+  background: #e0e0e0;
+}
+
+.sidebar li div {
+  user-select: none;
+}
+
+.sidebar li span:hover {
+  color: #333;
+}
+
+.main {
+  flex: 1;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 20px;
+}
+
+/*Nota do card*/
+.note {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #555;
+  font-style: italic;
+}
+/* botao de sair*/
+#exitBtn {
+  position: fixed;
+  top: 18px;
+  right: 14px;
+
+  width: 32px;
+  height: 32px;
+
+  border-radius: 50%;
+  border: none;
+
+  background: #e22f2f;
+  color: #f3f2f2;
+
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+#exitBtn:hover {
+  background: oklch(59.226% 0.2163 26.958 / 0.918);
+}
+
+#exitBtn:active {
+  transform: scale(0.92);
+}
+/* ======================
+   CONTROLE GLOBAL DE TELAS
+====================== */
+
+#app {
+  display: none !important;
+}
+
+#app.active {
+  display: flex !important;
+}
+
+.login-container {
+  display: flex;
+}
+
+.login-container.hidden {
+  display: none !important;
+}
+
+</style>
+</head>
+<body>
+
+<div class="login-container">
+  <h2>Biocards</h2>
+
+  <div id="auth">
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Senha">
+    <button onclick="register()">Registrar</button>
+    <button onclick="login()">Login</button>
+    <div id="errorMsg" style="color:red; margin-top:10px;"></div>
+
+  </div>
+</div>
+
+
+<!-- ======================
+     APLICAÇÃO (APÓS LOGIN)
+====================== -->
+<div id="app" class="layout">
+  <button id="exitBtn" onclick="logout()" title="Sair">⨯</button>
+
+  <!-- ===== DECKS ===== -->
+  <div class="sidebar">
+  <h3>Decks</h3>
+  <ul id="deckList"></ul>
+</div>
+
+  <!-- ===== VISÃO DO DECK ===== -->
+ <div class="main">
+  <div id="deckView" class="hidden study">
+
+  <div class="study-header">
+    <h3 id="currentDeckTitle"></h3>
+    <div id="progress" class="progress">0 / 0</div>
+  </div>
+
+  <div class="card-container">
+    <div class="card" id="card"></div>
+  </div>
+
+  <button class="show-btn" onclick="showAnswer()">
+    Mostrar resposta
+  </button>
+
+  <div class="actions">
+    <button class="wrong" onclick="mark(false)">❌ Errei</button>
+    <button class="right" onclick="mark(true)">✅ Acertei</button>
+  </div>
+
+</div>
+</div>
+
+
+ <!-- Card de estudo --
+    <div class="card" id="card"></div>
+
+     Controles de estudo --
+    <button onclick="showAnswer()">Mostrar resposta</button><br>
+    <button onclick="mark(true)">Acertei</button>
+    <button onclick="mark(false)">Errei</button>
+  </div> -->
+</div>
+
+<script type="module">
+/* =========================
+   IMPORTS DO FIREBASE
+========================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  setDoc,
+  query,
+  where,
+  or
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+
+/* =========================
+   CONFIGURAÇÃO DO FIREBASE
+========================= */
+const firebaseConfig = {
+   apiKey: "AIzaSyCPkeNWnmPl5Esc6HP9VaFLnG3-uUsgbUk",
+  authDomain: "biocards-48d54.firebaseapp.com",
+  projectId: "biocards-48d54",
+  storageBucket: "biocards-48d54.firebasestorage.app",
+  messagingSenderId: "933881767840",
+  appId: "1:933881767840:web:08a2408a35886f486526c5",
+  measurementId: "G-D3BLNN0G1S"
+};
+
+/* Inicializa Firebase */
+const firebaseApp = initializeApp(firebaseConfig);
+
+/* Serviços usados */
+const auth = getAuth(firebaseApp);     // autenticação
+const db = getFirestore(firebaseApp); // banco de dados
+
+/* =========================
+   DOM — VARIÁVEIS EXPLÍCITAS
+========================= */
+/* Referências diretas aos elementos HTML */
+const authDiv = document.getElementById("auth");
+const appDiv = document.getElementById("app");
+const deckList = document.getElementById("deckList");
+const deckView = document.getElementById("deckView");
+const cardDiv = document.getElementById("card");
+const currentDeckTitle = document.getElementById("currentDeckTitle");
+const progressDiv = document.getElementById("progress");
+const authMessage = document.getElementById("authMessage");
+const errorMsg = document.getElementById("errorMsg");
+const loginContainer = document.querySelector(".login-container");
+const expandedDecks = new Set();
+
+
+/* Inputs */
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+/*const deckTitleInput = document.getElementById("deckTitle");
+const frontInput = document.getElementById("front");
+const backInput = document.getElementById("back");*/
+
+/* =========================
+   ESTADO DA APLICAÇÃO
+========================= */
+/*
+  Esses valores controlam o "estado atual"
+  do estudo
+*/
+let currentDeckId = null; // deck selecionado
+let cards = [];          // cards carregados
+let index = 0;           // card atual
+let totalCards = 0;      // total de cards no deck atual
+let resolvedCards = 0;   // quantos cards já foram resolvidos nesta sessão
+
+/* =========================
+   AUTENTICAÇÃO
+========================= */
+
+/* Registrar usuário */
+window.register = () =>
+  createUserWithEmailAndPassword(
+    auth,
+    emailInput.value,
+    passwordInput.value
+  );
+
+/* Login */
+
+window.login = async () => {
+  errorMsg.innerText = ""; // limpa mensagem anterior
+
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      emailInput.value,
+      passwordInput.value
+    );
+  } catch (e) {
+    errorMsg.innerText = "Erro ao fazer login";
+  }
+};
+
+/* Logout */
+window.logout = () => signOut(auth);
+
+/*
+  Observa mudanças de login:
+  - mostra ou esconde telas
+  - carrega decks ao logar
+*/
+onAuthStateChanged(auth, user => {
+  if (user) {
+    loginContainer.classList.add("hidden");
+    appDiv.classList.add("active");
+    loadDecks();
+  } else {
+    loginContainer.classList.remove("hidden");
+    appDiv.classList.remove("active");
+    deckView.classList.add("hidden");
+  }
+});
+/* =========================
+   DECKS
+========================= */
+
+/* Carrega os decks do usuário logado */
+async function loadDecks() {
+  deckList.innerHTML = "";
+
+  const snap = await getDocs(collection(db, "decks"));
+
+  const decks = snap.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
+
+  renderDeckTree(decks, null, 0);
+}
+
+function renderDeckTree(decks, parentId, level) {
+  decks
+    .filter(d => d.parentDeck === parentId)
+    .forEach(deck => {
+
+      const hasChildren = decks.some(d => d.parentDeck === deck.id);
+
+      const li = document.createElement("li");
+      li.style.paddingLeft = `${level * 16}px`;
+
+      // container interno
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "6px";
+
+      // ícone expandir/recolher
+      if (hasChildren) {
+        const toggle = document.createElement("span");
+        toggle.innerText = expandedDecks.has(deck.id) ? "▾" : "▸";
+        toggle.style.cursor = "pointer";
+
+        toggle.onclick = (e) => {
+          e.stopPropagation();
+          if (expandedDecks.has(deck.id)) {
+            expandedDecks.delete(deck.id);
+          } else {
+            expandedDecks.add(deck.id);
+          }
+          loadDecks(); // re-renderiza
+        };
+
+        row.appendChild(toggle);
+      } else {
+        row.appendChild(document.createElement("span")); // espaço vazio
+      }
+
+      // título do deck
+      const title = document.createElement("span");
+      title.innerText = deck.title;
+      title.style.cursor = "pointer";
+      title.onclick = () => openDeck(deck.id, deck.title);
+
+      row.appendChild(title);
+      li.appendChild(row);
+      deckList.appendChild(li);
+
+      // renderiza filhos apenas se expandido
+      if (hasChildren && expandedDecks.has(deck.id)) {
+        renderDeckTree(decks, deck.id, level + 1);
+      }
+    });
+}
+
+
+
+
+/* Cria um novo deck 
+window.createDeck = async () => {
+  if (!deckTitleInput.value) return;
+
+  await addDoc(collection(db, "decks"), {
+    title: deckTitleInput.value,
+    owner: auth.currentUser.uid
+  });
+
+  deckTitleInput.value = "";
+  loadDecks();
+};*/
+
+/* =========================
+   CARDS
+========================= */
+
+/* Abre um deck e carrega os cards */
+async function openDeck(id, title) {
+  currentDeckId = id;
+  currentDeckTitle.innerText = title;
+  deckView.classList.remove("hidden");
+
+  cards = [];
+  resolvedCards = 0;
+
+  // 1. Deck principal
+  const mainSnap = await getDocs(
+    collection(db, "decks", id, "cards")
+  );
+
+  mainSnap.forEach(d =>
+    cards.push({ id: d.id, deckId: id, ...d.data() })
+  );
+
+  // 2. Subdecks
+  const subDeckIds = await getAllSubDeckIds(id);
+
+  for (const subId of subDeckIds) {
+    const snap = await getDocs(
+      collection(db, "decks", subId, "cards")
+    );
+
+    snap.forEach(d =>
+      cards.push({ id: d.id, deckId: subId, ...d.data() })
+    );
+  }
+
+  totalCards = cards.length;
+  index = 0;
+
+  showFront();
+}
+
+
+/* Cria um card 
+window.createCard = async () => {
+  if (!currentDeckId) return;
+
+  await addDoc(collection(db, "decks", currentDeckId, "cards"), {
+    front: frontInput.value,
+    back: backInput.value
+  });
+
+  frontInput.value = "";
+  backInput.value = "";
+
+  openDeck(currentDeckId, currentDeckTitle.innerText);
+};
+*/
+/* =========================
+   ESTUDO
+========================= */
+
+/* Mostra a frente do card */
+function showFront() {
+  // 1. Atualiza progresso
+  updateProgress();
+
+  // 2. Checa se o deck terminou
+  if (resolvedCards >= totalCards) {
+    cardDiv.innerText = "🎉 Parabéns! Deck concluído!";
+
+    document.querySelectorAll(".actions button")
+      .forEach(btn => btn.style.display = "none");
+
+    document.querySelector(".show-btn").style.display = "none";
+    return;
+  }
+
+  // 3. Checa se ainda existem cards
+  if (!cards.length) {
+    cardDiv.innerText = "Nenhum card disponível";
+    return;
+  }
+
+  // 4. Renderiza o card
+  cardDiv.innerText = cards[index].front;
+
+  // 5. Garante botões visíveis
+  document.querySelectorAll(".actions button")
+    .forEach(btn => btn.style.display = "inline-block");
+
+  document.querySelector(".show-btn").style.display = "inline-block";
+}
+
+
+function updateProgress() {
+  progressDiv.innerText = `${resolvedCards} / ${totalCards}`;
+}
+/* Mostra o verso */
+window.showAnswer = () => {
+  const card = cards[index];
+
+  cardDiv.innerHTML = `
+    <div>
+      <strong>${card.back}</strong>
+      ${card.note ? `<div class="note">${card.note}</div>` : ""}
+    </div>
+  `;
+};
+
+
+
+
+/* Marca acerto ou erro */
+window.mark = async correct => {
+  const c = cards[index];
+
+  /* Salva progresso */
+  await setDoc(
+    doc(db, "progress", `${auth.currentUser.uid}_${currentDeckId}_${c.id}`),
+    {
+      uid: auth.currentUser.uid,
+      deckId: currentDeckId,
+      cardId: c.id,
+      correct,
+      reviewedAt: new Date()
+    }
+  );
+resolvedCards++;
+  /* Reorganiza fila */
+  cards.splice(index, 1);
+  correct ? cards.push(c) : cards.splice(1, 0, c);
+
+  index = 0;
+  showFront();
+};
+/*busca todos os subdecks*/
+async function getAllSubDeckIds(deckId) {
+  const q = query(
+    collection(db, "decks"),
+    where("parentDeck", "==", deckId)
+  );
+
+  const snap = await getDocs(q);
+
+  let ids = [];
+
+  for (const d of snap.docs) {
+    ids.push(d.id);
+    const children = await getAllSubDeckIds(d.id);
+    ids = ids.concat(children);
+  }
+
+  return ids;
+}
+
+</script>
+
+</body>
+</html>
