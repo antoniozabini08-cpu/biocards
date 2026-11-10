@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrainCircuit, BookOpen, Network, Layers, ClipboardList, Plus, Sparkles, LoaderCircle, Trash2, ChevronRight, CircleHelp, Lightbulb, Check, X, Settings, KeyRound, Eye, EyeOff } from 'lucide-react';
 import KnowledgeMap from './KnowledgeMap.jsx';
-import { analyzeNote, normalizeResult, DEFAULT_MODEL, MODEL_OPTIONS } from './gemini.js';
+import { analyzeNote, normalizeResult, parseSavedNotes, DEFAULT_MODEL, MODEL_OPTIONS } from './gemini.js';
 import { sampleNote, sampleResult, sampleTitle } from './sample.js';
 import './style.css';
 
@@ -12,13 +12,26 @@ const store = {
   set(key, value) { try { localStorage.setItem(key, value); } catch { /* sem armazenamento */ } },
   remove(key) { try { localStorage.removeItem(key); } catch { /* sem armazenamento */ } }
 };
-const loadNotes = () => { try { return JSON.parse(store.get('ko_notes', '[]')).map(n => ({ ...n, result: n.result ? normalizeResult(n.result) : null })); } catch { return []; } };
+// Carrega as anotações sem quebrar com dado corrompido. Antes de qualquer
+// gravação, guarda uma cópia exata do conteúdo original, para nada se perder.
+function loadNotes() {
+  const raw = store.get('ko_notes', null);
+  const { notes, damaged } = parseSavedNotes(raw);
+  let backupKey = null;
+  if (damaged) {
+    backupKey = `ko_notes_backup_${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    store.set(backupKey, raw);
+  }
+  return { notes, backupKey };
+}
+const initialLoad = loadNotes();
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 const TAB_NAMES = { editor: 'Anotações', map: 'Mapa de conhecimento', cards: 'Flashcards', questions: 'Questões', settings: 'Ajustes' };
 
 function App() {
-  const [notes, setNotes] = useState(loadNotes);
+  const [notes, setNotes] = useState(initialLoad.notes);
+  const [recoveryNotice, setRecoveryNotice] = useState(initialLoad.backupKey);
   const [activeId, setActiveId] = useState(null);
   const [draft, setDraft] = useState(sampleNote);
   const [title, setTitle] = useState(sampleTitle);
@@ -26,8 +39,15 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('map');
-  const [revealed, setRevealed] = useState({});
-  const [answers, setAnswers] = useState({});
+  // Estado de revisão (cartões virados, alternativas marcadas) pertence ao resultado
+  // em exibição. Cada troca de nota/análise gera uma nova sessão e o estado anterior
+  // deixa de valer automaticamente, sem depender de lembrar de zerar.
+  const [session, setSession] = useState(0);
+  const [review, setReview] = useState({ session: 0, revealed: {}, answers: {} });
+  const current = review.session === session ? review : { session, revealed: {}, answers: {} };
+  const revealed = current.revealed, answers = current.answers;
+  const setRevealed = (fn) => setReview(r => { const base = r.session === session ? r : { session, revealed: {}, answers: {} }; return { ...base, revealed: fn(base.revealed) }; });
+  const setAnswers = (fn) => setReview(r => { const base = r.session === session ? r : { session, revealed: {}, answers: {} }; return { ...base, answers: fn(base.answers) }; });
   const [apiKey, setApiKey] = useState(() => store.get('ko_gemini_key', ''));
   const [model, setModel] = useState(() => store.get('ko_gemini_model', DEFAULT_MODEL));
   const [keyDraft, setKeyDraft] = useState(apiKey);
@@ -57,7 +77,7 @@ function App() {
   }, []);
   const installApp = async () => { if (!installPrompt) return; await installPrompt.prompt(); setInstallPrompt(null); };
 
-  const showResult = (r) => { setResult(r); setRevealed({}); setAnswers({}); setSelectedConcept(null); };
+  const showResult = (r) => { setResult(r); setSession(n => n + 1); setSelectedConcept(null); };
   const saveNote = () => {
     const item = { id: activeId || newId(), title: title.trim() || 'Anotação sem título', text: draft, result, updated: new Date().toISOString() };
     setNotes(prev => [item, ...prev.filter(n => n.id !== item.id)]);
@@ -121,6 +141,7 @@ function App() {
       <header className="topbar"><div className="breadcrumb">Meu espaço <ChevronRight size={14}/> <strong>{TAB_NAMES[tab]}</strong></div><div className="top-actions"><span className={`connection-pill ${isOnline ? '' : 'offline'}`}>{isOnline ? 'Online' : 'Sem conexão'}</span>{installPrompt && <button className="install-button" onClick={installApp}>Instalar app</button>}{isInstalled && <span className="installed-label">Aplicativo instalado</span>}<span className="model-pill"><Sparkles size={14}/> Gemini AI</span><div className="avatar">K</div></div></header>
       <div className="content">
         {!apiKey && tab !== 'settings' && <div className="setup-banner"><Lightbulb size={18}/><div><strong>Adicione sua chave Gemini para analisar suas anotações</strong><p>O app roda inteiro no navegador. A chave fica salva só neste aparelho e é enviada direto para o Google. Enquanto isso, veja um mapa de exemplo.</p><div className="banner-actions"><button className="button primary small" onClick={() => setTab('settings')}><KeyRound size={14}/> Configurar chave</button>{!result && <button className="button secondary small" onClick={loadSample}>Ver exemplo</button>}</div></div></div>}
+        {recoveryNotice && <div className="setup-banner"><Lightbulb size={18}/><div><strong>Algumas anotações salvas estavam corrompidas</strong><p>Recuperamos tudo o que foi possível. Uma cópia do conteúdo original foi guardada neste navegador ({recoveryNotice}).</p><div className="banner-actions"><button className="button secondary small" onClick={() => setRecoveryNotice(null)}>Entendi</button></div></div></div>}
         {error && <div className="error-banner"><X size={17}/>{error}</div>}
 
         {tab === 'editor' && <section className="editor-view">

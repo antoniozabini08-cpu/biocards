@@ -106,15 +106,59 @@ export async function analyzeNote(note, { apiKey, model = DEFAULT_MODEL } = {}) 
   }
 }
 
-// Garante que todos os campos existam, para a interface nunca quebrar.
-export function normalizeResult(r = {}) {
-  const arr = (v) => (Array.isArray(v) ? v : []);
-  return {
-    summary: String(r.summary || ''),
-    concepts: arr(r.concepts).map((c, i) => ({ ...c, id: String(c.id || c.name || `c${i}`), name: String(c.name || c.id || `Conceito ${i + 1}`) })),
-    relationships: arr(r.relationships),
-    flashcards: arr(r.flashcards),
-    questions: arr(r.questions).map(q => ({ ...q, options: arr(q.options), type: q.type || 'discursiva' })),
-    gaps: arr(r.gaps)
-  };
+// Garante que todos os campos existam e tenham o tipo certo, para a interface
+// nunca quebrar — vale para respostas da IA e para dados salvos corrompidos.
+const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
+const str = (v) => (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : '');
+const list = (v) => (Array.isArray(v) ? v : []);
+const conf = (v) => (['alta', 'media', 'baixa'].includes(v) ? v : 'media');
+const QUESTION_TYPES = ['multipla_escolha', 'discursiva', 'aplicacao'];
+
+export function normalizeResult(r) {
+  const src = isObj(r) ? r : {};
+  const usedIds = new Set();
+  const concepts = list(src.concepts).filter(isObj).map((c, i) => {
+    const name = str(c.name).trim() || str(c.id).trim() || `Conceito ${i + 1}`;
+    let id = str(c.id).trim() || name;
+    if (usedIds.has(id)) { let k = 2; while (usedIds.has(`${id}-${k}`)) k++; id = `${id}-${k}`; }
+    usedIds.add(id);
+    return { id, name, definition: str(c.definition), source_excerpt: str(c.source_excerpt), confidence: conf(c.confidence) };
+  });
+  const relationships = list(src.relationships).filter(isObj)
+    .map(x => ({ from: str(x.from), to: str(x.to), type: str(x.type).trim() || 'relaciona', explanation: str(x.explanation), evidence: str(x.evidence), confidence: conf(x.confidence) }))
+    .filter(x => x.from && x.to);
+  const flashcards = list(src.flashcards).filter(isObj)
+    .map(x => ({ front: str(x.front), back: str(x.back), concept: str(x.concept) }))
+    .filter(x => x.front || x.back);
+  const questions = list(src.questions).filter(isObj)
+    .map(x => ({ type: QUESTION_TYPES.includes(x.type) ? x.type : 'discursiva', prompt: str(x.prompt), options: list(x.options).map(str).filter(Boolean), answer: str(x.answer), explanation: str(x.explanation), concept: str(x.concept) }))
+    .filter(x => x.prompt);
+  const gaps = list(src.gaps).map(str).filter(Boolean);
+  return { summary: str(src.summary), concepts, relationships, flashcards, questions, gaps };
+}
+
+// Lê as anotações salvas sem nunca quebrar. Recupera o que der; se algo estiver
+// corrompido, devolve `damaged: true` para o app guardar uma cópia do original.
+export function parseSavedNotes(raw) {
+  if (raw == null || raw === '') return { notes: [], damaged: false };
+  let data;
+  try { data = JSON.parse(raw); } catch { return { notes: [], damaged: true }; }
+  if (!Array.isArray(data)) return { notes: [], damaged: true };
+  let damaged = false;
+  const seen = new Set();
+  const notes = [];
+  data.forEach((n, i) => {
+    if (!isObj(n)) { damaged = true; return; }
+    let id = str(n.id).trim() || `recuperada-${i}`;
+    while (seen.has(id)) id += '-b';
+    seen.add(id);
+    const title = str(n.title).trim() || 'Anotação sem título';
+    const text = str(n.text);
+    let result = null;
+    if (isObj(n.result)) result = normalizeResult(n.result);
+    else if (n.result != null) damaged = true;
+    if (id !== n.id || title !== n.title || text !== n.text) damaged = true;
+    notes.push({ id, title, text, result, updated: str(n.updated) });
+  });
+  return { notes, damaged };
 }

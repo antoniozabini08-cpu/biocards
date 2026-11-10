@@ -5,16 +5,39 @@ import { ZoomIn, ZoomOut, Maximize2, ArrowRight, ArrowLeft } from 'lucide-react'
 
 const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-const FONT = 13, LINE = 16, PAD_X = 12, PAD_Y = 9, CHAR_W = 7.2;
+const FONT = 13, LINE = 16, PAD_X = 12, PAD_Y = 9;
+const NODE_FONT = `600 ${FONT}px "DM Sans", sans-serif`;
+const LABEL_FONT = '500 11px "DM Sans", sans-serif';
+
+// Mede o texto com a fonte real, para a caixa sempre caber o nome
+// (mesmo quando a fonte do Google não carrega e o navegador usa outra).
+let measureCtx = null;
+function textWidth(text, font, fallbackPerChar) {
+  try {
+    measureCtx = measureCtx || document.createElement('canvas').getContext('2d');
+    measureCtx.font = font;
+    return Math.ceil(measureCtx.measureText(text).width);
+  } catch { return text.length * fallbackPerChar; }
+}
 
 function wrapText(text, max = 16, maxLines = 3) {
-  const words = String(text).split(/\s+/).filter(Boolean);
+  // Cada pedaço lembra se deve ser colado ao anterior sem espaço (partes de uma palavra).
+  const pieces = [];
+  String(text).split(/\s+/).filter(Boolean).forEach(word => {
+    if (word.length <= max + 2) { pieces.push({ t: word, glue: ' ' }); return; }
+    // Palavra longa: quebra primeiro nos hífens que ela já tem; só corta à força se ainda não couber.
+    const parts = word.split(/(?<=-)/);
+    parts.forEach((part, i) => {
+      const chunks = part.length <= max + 2 ? [part] : part.match(new RegExp(`.{1,${max - 1}}`, 'g')).map((c, j, all) => (j < all.length - 1 ? c + '-' : c));
+      chunks.forEach((c, j) => pieces.push({ t: c, glue: i === 0 && j === 0 ? ' ' : '' }));
+    });
+  });
   const lines = [];
   let line = '';
-  for (const word of words) {
-    if (!line) line = word;
-    else if ((line + ' ' + word).length <= max) line += ' ' + word;
-    else { lines.push(line); line = word; }
+  for (const { t, glue } of pieces) {
+    if (!line) line = t;
+    else if ((line + glue + t).length <= max) line += glue + t;
+    else { lines.push(line); line = t; }
   }
   if (line) lines.push(line);
   if (lines.length > maxLines) {
@@ -29,7 +52,7 @@ function wrapText(text, max = 16, maxLines = 3) {
 export function buildGraph(concepts = [], relationships = []) {
   const nodes = concepts.map((c, i) => {
     const lines = wrapText(c.name);
-    const w = Math.max(70, Math.max(...lines.map(l => l.length)) * CHAR_W + PAD_X * 2);
+    const w = Math.max(70, Math.max(...lines.map(l => textWidth(l, NODE_FONT, 8))) + PAD_X * 2 + 2);
     const h = lines.length * LINE + PAD_Y * 2;
     return { ...c, index: i, lines, w, h, degree: 0, out: [], in: [] };
   });
@@ -49,7 +72,7 @@ export function buildGraph(concepts = [], relationships = []) {
     const s = resolve(r.from), t = resolve(r.to);
     if (s < 0 || t < 0 || s === t) { unresolved.push(r); return; }
     const labelText = truncate(String(r.type || 'relaciona'), 24);
-    const edge = { ...r, index: i, s, t, labelText, labelW: labelText.length * 6.1 + 12 };
+    const edge = { ...r, index: i, s, t, labelText, labelW: textWidth(labelText, LABEL_FONT, 6.6) + 16 };
     edges.push(edge);
     nodes[s].degree++; nodes[t].degree++;
     nodes[s].out.push(edge); nodes[t].in.push(edge);
@@ -78,7 +101,7 @@ function computeLayout(nodes, edges, W, H) {
   if (!n) return [];
   if (n === 1) return [{ x: cx, y: cy }];
   const clamp = (p, nd) => {
-    p.x = Math.min(W - nd.w / 2 - 10, Math.max(nd.w / 2 + 10, p.x));
+    p.x = nd.w + 20 >= W ? W / 2 : Math.min(W - nd.w / 2 - 10, Math.max(nd.w / 2 + 10, p.x));
     p.y = Math.min(H - nd.h / 2 - 10, Math.max(nd.h / 2 + TOP, p.y));
   };
   // Começa em círculo: conceitos mais conectados ficam perto do centro.
@@ -255,6 +278,19 @@ function placeLabels(edges, pos, nodes) {
   return result;
 }
 
+// Carrega de uma vez as variações da fonte usadas no mapa, com acentos.
+const FONT_SAMPLE = 'AaBbCcÇçÃãÕõÁáÀàÂâÉéÊêÍíÓóÔôÚúÜü0123456789-/()';
+let fontsPreloaded = false;
+let fontsPromise = null;
+function preloadFonts() {
+  if (!fontsPromise) {
+    const load = Promise.all([document.fonts.load(NODE_FONT, FONT_SAMPLE), document.fonts.load(LABEL_FONT, FONT_SAMPLE)]).catch(() => {});
+    const timeout = new Promise(resolve => setTimeout(resolve, 1500));
+    fontsPromise = Promise.race([load, timeout]).then(() => { fontsPreloaded = true; });
+  }
+  return fontsPromise;
+}
+
 const truncate = (s, max) => (s.length > max ? s.slice(0, max - 1) + '…' : s);
 
 // ---------- Componente ----------
@@ -277,16 +313,51 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
     return () => ro.disconnect();
   }, []);
 
-  const graph = useMemo(() => buildGraph(concepts, relationships), [concepts, relationships]);
+  // Antes de medir e desenhar, garante que a fonte (inclusive os acentos) já
+  // carregou — senão as caixas seriam medidas com outra fonte e o mapa "pularia"
+  // quando ela chegasse. Sem internet, desenha após no máximo 1,5 s.
+  const [fontsReady, setFontsReady] = useState(() => !document.fonts || document.fonts.status === 'loaded' && fontsPreloaded);
+  const [fontVersion, setFontVersion] = useState(0);
+  useEffect(() => {
+    const fonts = document.fonts;
+    if (!fonts) return;
+    let alive = true;
+    preloadFonts().then(() => { if (alive) setFontsReady(true); });
+    const bump = () => { if (alive) setFontVersion(v => v + 1); };
+    fonts.addEventListener?.('loadingdone', bump);
+    return () => { alive = false; fonts.removeEventListener?.('loadingdone', bump); };
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const graph = useMemo(() => buildGraph(concepts, relationships), [concepts, relationships, fontVersion]);
   const W = Math.max(width, 300);
   const narrow = W < 600;
   const area = graph.nodes.reduce((sum, nd) => sum + nd.w * nd.h, 0);
   const H = Math.round(Math.min(narrow ? 920 : 680, Math.max(narrow ? 440 : 480, (area * 6.5) / W)));
 
-  const initial = useMemo(() => (width ? computeLayout(graph.nodes, graph.edges, W, H) : []), [graph, W, H, width]);
-  const [pos, setPos] = useState(initial);
-  const [view, setView] = useState({ x: 0, y: 0, w: W, h: H });
-  useEffect(() => { setPos(initial.map(p => ({ ...p }))); setView({ x: 0, y: 0, w: W, h: H }); }, [initial]);
+  // O layout só é refeito quando algo que muda o desenho muda de verdade
+  // (conceitos, relações, medidas dos textos ou tamanho do quadro).
+  const layoutKey = width ? JSON.stringify([W, H, graph.nodes.map(nd => [nd.id, nd.w, nd.h]), graph.edges.map(e => [e.s, e.t, e.labelW, e.offset])]) : '';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initial = useMemo(() => (width ? computeLayout(graph.nodes, graph.edges, W, H) : []), [layoutKey]);
+  // Posições arrastadas e zoom pertencem ao layout atual. Ao trocar de nota (ou de
+  // tamanho de tela) o layout muda e o mapa usa o novo na mesma renderização,
+  // sem nenhum quadro com as posições da nota anterior.
+  const [local, setLocal] = useState({ base: null, pos: null, view: null });
+  const own = local.base === initial;
+  const fullView = { x: 0, y: 0, w: W, h: H };
+  const pos = own && local.pos ? local.pos : initial;
+  const view = own && local.view ? local.view : fullView;
+  const setPos = (fn) => setLocal(s => {
+    const mine = s.base === initial;
+    const cur = mine && s.pos ? s.pos : initial;
+    return { base: initial, pos: fn(cur), view: mine ? s.view : null };
+  });
+  const setView = (fn) => setLocal(s => {
+    const mine = s.base === initial;
+    const cur = mine && s.view ? s.view : fullView;
+    return { base: initial, pos: mine ? s.pos : null, view: fn(cur) };
+  });
+  const resetLayout = () => setLocal({ base: null, pos: null, view: null });
 
   const selected = graph.nodes.find(nd => nd.id === selectedId) || null;
   const focusIndex = selected ? selected.index : hovered;
@@ -359,7 +430,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
   const tierClass = (nd) => `km-node km-${nd.tier}${selected?.index === nd.index ? ' km-selected' : ''}${neighborSet && !neighborSet.has(nd.index) ? ' km-dim' : ''}`;
   const edgeActive = (e) => focusIndex != null && (e.s === focusIndex || e.t === focusIndex);
   const sortedEdges = [...graph.edges].sort((a, b) => Number(edgeActive(a)) - Number(edgeActive(b)));
-  const ready = pos.length === graph.nodes.length && width > 0;
+  const ready = fontsReady && pos.length === graph.nodes.length && width > 0;
   const labelPos = useMemo(() => (ready ? placeLabels(graph.edges, pos, graph.nodes) : new Map()), [ready, graph, pos]);
 
   return <div className="km">
@@ -367,7 +438,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
       <div className="km-toolbar">
         <button type="button" onClick={() => zoom(0.75)} title="Aproximar" aria-label="Aproximar"><ZoomIn size={16} /></button>
         <button type="button" onClick={() => zoom(1 / 0.75)} title="Afastar" aria-label="Afastar" disabled={!zoomed}><ZoomOut size={16} /></button>
-        <button type="button" onClick={() => { setPos(initial.map(p => ({ ...p }))); setView({ x: 0, y: 0, w: W, h: H }); }} title="Reorganizar" aria-label="Reorganizar mapa"><Maximize2 size={15} /></button>
+        <button type="button" onClick={resetLayout} title="Reorganizar" aria-label="Reorganizar mapa"><Maximize2 size={15} /></button>
       </div>
       {ready && <svg ref={svgRef} viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} width={W} height={H}
         className={zoomed ? 'km-zoomed' : ''} role="img" aria-label="Mapa de conceitos e relações"
