@@ -1,64 +1,53 @@
-# Knowledge OS — Web app instalável (PWA)
+# Knowledge OS — Segundo cérebro (PWA)
 
-Protótipo de segundo cérebro com interface responsiva para Android e desktop. Pode ser instalado pela tela inicial do Chrome como um aplicativo (PWA), sem Play Store.
+Protótipo de segundo cérebro que roda **inteiro no navegador**, sem servidor. Funciona no computador e no Android, e pode ser instalado na tela inicial como aplicativo (PWA).
 
-## O que já está incluído
-- Editor de anotações e armazenamento local no navegador.
+## Usar agora, sem instalar nada
+O arquivo pronto está em **`site/index.html`**: todo o app está nesse único arquivo.
+
+- **Abrir direto:** dê dois cliques em `site/index.html`. O app abre no navegador.
+- **Publicar (Netlify, GitHub Pages etc.):** envie a pasta `site/` inteira. No Netlify, basta arrastar a pasta para a área de deploy.
+
+Depois de abrir:
+1. Vá em **Ajustes** e cole sua chave da Gemini API (crie em https://aistudio.google.com/apikey).
+2. Em **Anotações**, escreva ou cole o conteúdo e toque em **Organizar com IA**.
+3. Sem chave, você ainda pode tocar em **Ver exemplo** para conhecer o mapa.
+
+## O que o app faz
+- Editor de anotações, salvas no armazenamento do navegador.
 - Extração de conceitos, relações, síntese e pontos a aprofundar usando Gemini.
-- Mapa visual de conceitos.
-- Geração e revisão de flashcards.
-- Geração de questões com respostas e explicações.
-- Interface adaptada a celular, com navegação inferior.
-- Manifesto PWA, ícones, service worker e cache básico da interface.
-- Chave Gemini mantida no backend, nunca no JavaScript do navegador.
-
-## Requisitos
-- Node.js 20 ou superior.
-- Chave Gemini API: https://aistudio.google.com/apikey
-
-## Executar no computador
-```bash
-npm install
-cp .env.example .env
-```
-Edite `.env` e informe `GEMINI_API_KEY`. Não compartilhe essa chave.
-
-```bash
-npm run dev
-```
-Abra `http://localhost:5173` no computador. O frontend encaminha `/api` para o backend local.
+- **Mapa de conhecimento interativo:**
+  - setas mostram o sentido de cada relação, com o nome da relação na seta;
+  - cores indicam conceitos centrais, conectados e sem conexões; linha tracejada = relação incerta;
+  - toque em um conceito para destacar só as conexões dele e ver definição, trecho de origem e relações;
+  - arraste conceitos para reorganizar; use os botões de zoom em mapas grandes;
+  - toque em um conceito ou relação nas listas abaixo do mapa para encontrá-lo no mapa.
+- Flashcards e questões com respostas e explicações.
+- Interface para celular com navegação inferior; instalável como PWA.
 
 ## Instalar no Android
-Para instalar como PWA, o app precisa estar hospedado em um endereço HTTPS (ou em `localhost`, apenas para testes locais). Depois:
-1. Abra o endereço HTTPS no Chrome do Android.
-2. Abra o menu ⋮ do Chrome.
-3. Escolha **Instalar app** ou **Adicionar à tela inicial**.
-4. Confirme. O Knowledge OS aparecerá na tela inicial e abrirá em modo de aplicativo.
+O app precisa estar publicado em um endereço HTTPS (por exemplo, no Netlify):
+1. Abra o endereço no Chrome do Android.
+2. Menu ⋮ → **Instalar app** (ou **Adicionar à tela inicial**).
 
-O botão **Instalar app** também aparece no cabeçalho quando o Chrome disponibiliza a instalação.
+Abrindo o arquivo direto do celular (sem publicar), o app funciona, mas não pode ser instalado nem usado offline.
 
-## Publicar para acessar pelo Android
-Este projeto tem frontend e backend, então não basta abrir o arquivo HTML no celular. Publique a aplicação em um serviço que execute Node.js e ofereça HTTPS. Configure no ambiente do serviço:
-- `GEMINI_API_KEY`: sua chave privada.
-- `GEMINI_MODEL`: opcional; padrão `gemini-2.5-flash`.
-- `PORT`: normalmente fornecida pelo próprio serviço.
+## Sobre a chave Gemini
+- A chave fica salva apenas no navegador do aparelho e é enviada direto para o Google. Não passa por nenhum outro servidor.
+- Quem usar o mesmo aparelho e navegador pode ver a chave. Use uma chave só sua e, se precisar, apague-a em **Ajustes** ou no AI Studio.
+- Cada análise consome a sua cota da Gemini API: https://ai.google.dev/gemini-api/docs/pricing
 
-Comandos de produção:
+## Desenvolvimento
+Requer Node.js 20 ou superior.
 ```bash
 npm install
-npm run build
-npm start
+npm run dev     # servidor de desenvolvimento em http://localhost:5173
+npm run build   # gera site/index.html (um único arquivo)
 ```
-O servidor Express entrega os arquivos compilados de `dist` e atende as rotas `/api`.
+Depois de alterar o código em `src/`, rode `npm run build` para atualizar a pasta `site/`.
 
-## Limitações importantes
-- O protótipo não tem autenticação nem banco de dados remoto.
-- Anotações e resultados ficam no armazenamento local do navegador/aparelho. Limpar os dados do navegador pode apagá-los; não há sincronização entre dispositivos.
-- O service worker mantém arquivos da interface em cache para carregamento básico offline, mas a análise pelo Gemini exige internet e o backend disponível.
-- O mapa é uma visualização simples, ainda não é uma rede integrada entre todas as anotações.
-- A IA pode errar. Confira conceitos, relações, questões e respostas antes de usar para estudar.
+## Limitações
+- Sem conta nem sincronização: as anotações ficam no navegador. Limpar os dados do navegador apaga as anotações.
+- A análise pelo Gemini exige internet.
+- A IA pode errar. Confira conceitos, relações, questões e respostas antes de estudar por eles.
 - Não insira dados identificáveis de pacientes nem outras informações sensíveis.
-- Antes de abrir ao público, implemente autenticação, banco de dados, limites de uso, proteção contra abuso e controles de privacidade.
-
-## Custos
-Cada análise consome tokens da Gemini API. O custo varia conforme o tamanho das notas e a resposta. Consulte os preços e limites atuais: https://ai.google.dev/gemini-api/docs/pricing

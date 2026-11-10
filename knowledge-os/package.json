@@ -1,26 +1,21 @@
 {
   "name": "knowledge-os-mvp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm:server\" \"npm:client\"",
-    "server": "node --watch server/index.js",
-    "client": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
-    "start": "node server/index.js"
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@google/genai": "^1.11.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^6.0.7"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "vite-plugin-singlefile": "^2.2.1"
+  }
 }
