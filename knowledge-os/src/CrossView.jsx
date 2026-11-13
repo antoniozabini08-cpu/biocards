@@ -9,6 +9,11 @@ const LEGEND = [
   { swatch: 'linked', label: 'Conceito conectado' },
   { swatch: 'isolated', label: 'Sem conexões' }
 ];
+const LINES = [
+  { line: '', label: 'Relação dentro de uma anotação' },
+  { line: 'km-line-cross', label: 'Ligação entre anotações (IA)' },
+  { line: 'km-line-dashed', label: 'Incerta' }
+];
 const AUTO_FILTER_ABOVE = 45; // acima disso, começa mostrando só pontes e vizinhos
 const MAX_DESKTOP = 70, MAX_PHONE = 40; // limite de conceitos desenhados para o mapa continuar legível
 
@@ -58,11 +63,12 @@ export default function CrossView({ notes, onOpenNote, onGoEditor, onLoadSamples
     <div className="km-details-head"><div><span className={`km-swatch km-${node.tier}`} /><strong>{node.name}</strong></div>{node.noteCount > 1 ? <span className="tiny-tag shared-tag">ponte · {node.noteCount} anotações</span> : <span className="tiny-tag cross-tag">1 anotação</span>}</div>
     <div className="cross-defs">{node.occurrences.map(o => <div className="cross-def" key={o.noteId}>
       <button type="button" className="note-chip" onClick={() => openNote(o.noteId)} title="Abrir esta anotação"><BookOpen size={12} /> {o.title}</button>
+      {o.nameInNote && o.nameInNote !== node.name && <span className="alias-note">chamado de “{o.nameInNote}” nesta anotação{o.viaAI ? ' (equivalência indicada pela IA)' : ''}</span>}
       <p>{o.definition || 'Sem definição nesta anotação.'}</p>
     </div>)}</div>
     {node.degree === 0 ? <p className="km-hint">Nenhuma relação foi identificada para este conceito.</p> : <ul className="km-relations">
-      {node.out.map(e => <li key={`o${e.index}`}><ArrowRight size={13} /><span className="relation-type">{e.type}</span><button type="button" onClick={() => onSelect(nodes[e.t].id)}>{nodes[e.t].name}</button><small className="source-note">{e.sources.map(s => s.title).join(', ')}</small></li>)}
-      {node.in.map(e => <li key={`i${e.index}`}><ArrowLeft size={13} /><button type="button" onClick={() => onSelect(nodes[e.s].id)}>{nodes[e.s].name}</button><span className="relation-type">{e.type}</span><small className="source-note">{e.sources.map(s => s.title).join(', ')}</small></li>)}
+      {node.out.map(e => <li key={`o${e.index}`}><ArrowRight size={13} /><span className="relation-type">{e.type}</span><button type="button" onClick={() => onSelect(nodes[e.t].id)}>{nodes[e.t].name}</button>{e.cross && <span className="cross-badge">entre anotações</span>}<small className="source-note">{e.sources.map(s => s.title).join(', ')}</small></li>)}
+      {node.in.map(e => <li key={`i${e.index}`}><ArrowLeft size={13} /><button type="button" onClick={() => onSelect(nodes[e.s].id)}>{nodes[e.s].name}</button><span className="relation-type">{e.type}</span>{e.cross && <span className="cross-badge">entre anotações</span>}<small className="source-note">{e.sources.map(s => s.title).join(', ')}</small></li>)}
     </ul>}
   </>;
 
@@ -72,7 +78,7 @@ export default function CrossView({ notes, onOpenNote, onGoEditor, onLoadSamples
       <div className="stat-card"><span>ANOTAÇÕES</span><strong>{full.used.length}</strong></div>
       <div className="stat-card"><span>CONCEITOS</span><strong>{full.totalConcepts}</strong></div>
       <div className="stat-card"><span>PONTES</span><strong>{full.shared.length}</strong></div>
-      <div className="stat-card"><span>RELAÇÕES</span><strong>{full.totalRelationships}</strong></div>
+      <div className="stat-card"><span>LIGAÇÕES ENTRE NOTAS</span><strong>{full.crossCount}</strong></div>
     </div>
 
     <div className="panel cross-filters">
@@ -86,26 +92,27 @@ export default function CrossView({ notes, onOpenNote, onGoEditor, onLoadSamples
         <div className="panel-head"><div><h3>Mapa integrado</h3><p>{filterOn ? `Mostrando ${view.concepts.length} de ${full.totalConcepts} conceitos: as pontes e os conceitos ligados a elas.` : 'As setas mostram o sentido de cada relação.'}</p></div><span className="tiny-tag">{view.concepts.length} conceitos</span></div>
         {view.hidden > 0 && <p className="km-warning">Para manter o mapa legível, {view.hidden} conceitos menos conectados ficaram de fora. Tire algumas anotações do cruzamento ou ative o filtro de pontes.</p>}
         <KnowledgeMap concepts={view.concepts} relationships={view.relationships} selectedId={selected} onSelect={setSelected}
-          legend={LEGEND} renderDetails={renderDetails} maxHeight={(narrow) => (narrow ? 3200 : 2400)} />
+          legend={LEGEND} lines={LINES} renderDetails={renderDetails} maxHeight={(narrow) => (narrow ? 2000 : 2400)} />
       </div>
 
       <div className="map-layout">
         <div className="panel">
           <div className="panel-head"><div><h3><Waypoints size={15} /> Pontes entre anotações</h3><p>Conceitos que aparecem em mais de uma anotação.</p></div></div>
-          {full.shared.length === 0 ? <p className="km-hint">Nenhum conceito em comum entre as anotações selecionadas. Conceitos só são cruzados quando têm o mesmo nome.</p>
+          {full.shared.length === 0 ? <p className="km-hint">Nenhum conceito em comum entre as anotações selecionadas.</p>
             : <div className="bridge-list">{full.shared.map(c => <button type="button" key={c.id} className={`bridge-row ${selected === c.id ? 'selected' : ''}`} onClick={() => focus(c.id)}>
               <strong>{c.name}</strong><span className="bridge-count">{c.noteCount} anotações</span>
               <span className="bridge-notes">{c.occurrences.map(o => o.title).join(' · ')}</span>
             </button>)}</div>}
         </div>
         <div className="panel">
-          <div className="panel-head"><div><h3><Link2 size={15} /> Anotações relacionadas</h3><p>Pares de anotações e o que elas têm em comum.</p></div></div>
-          {full.pairs.length === 0 ? <p className="km-hint">Nenhum par de anotações com conceitos em comum.</p>
+          <div className="panel-head"><div><h3><Link2 size={15} /> Anotações relacionadas</h3><p>Conceitos em comum e ligações criadas pela IA.</p></div></div>
+          {full.pairs.length === 0 ? <p className="km-hint">Nenhum par de anotações relacionado ainda.</p>
             : <div className="pair-list">{full.pairs.map(p => <div className="pair-row" key={`${p.a.id}|${p.b.id}`}>
               <div className="pair-notes"><button type="button" className="note-chip" onClick={() => onOpenNote(p.a)}>{p.a.title}</button><span>↔</span><button type="button" className="note-chip" onClick={() => onOpenNote(p.b)}>{p.b.title}</button></div>
-              <p>{p.concepts.length} em comum: {p.concepts.join(', ')}</p>
+              {p.concepts.length > 0 && <p>{p.concepts.length} em comum: {p.concepts.join(', ')}</p>}
+              {p.links.length > 0 && <p className="pair-links">{p.links.length} {p.links.length === 1 ? 'ligação' : 'ligações'}: {p.links.join('; ')}</p>}
             </div>)}</div>}
-          {full.isolatedNotes.length > 0 && <p className="km-hint isolated-hint">Sem conceitos em comum com as outras: {full.isolatedNotes.map(n => n.title).join(', ')}.</p>}
+          {full.isolatedNotes.length > 0 && <p className="km-hint isolated-hint">Ainda sem relação com as outras: {full.isolatedNotes.map(n => n.title).join(', ')}.</p>}
         </div>
       </div>
     </>}

@@ -30,17 +30,22 @@ export function buildCrossMap(notes, { noteIds = null, onlyShared = false, maxCo
 
   const merged = new Map();
   const edges = new Map();
+  const localByNote = new Map();
   used.forEach(note => {
     const local = new Map();
+    localByNote.set(note.id, local);
+    // Equivalências apontadas pela IA: "Transportador GLUT4" é o mesmo que "GLUT4".
+    const sameAs = new Map((note.result.links?.sameAs || []).map(x => [x.conceptId, x.targetKey]));
     note.result.concepts.forEach(c => {
-      const key = canonical(conceptKey(c.name));
+      const alias = sameAs.get(c.id);
+      const key = alias && allKeys.has(alias) ? canonical(alias) : canonical(conceptKey(c.name));
       if (!key) return;
       local.set(norm(c.id), key);
       local.set(norm(c.name), key);
       let m = merged.get(key);
       if (!m) { m = { id: key, names: new Map(), notes: new Map(), confidence: c.confidence }; merged.set(key, m); }
       m.names.set(c.name, (m.names.get(c.name) || 0) + 1);
-      if (!m.notes.has(note.id)) m.notes.set(note.id, { noteId: note.id, title: note.title, definition: c.definition, excerpt: c.source_excerpt });
+      if (!m.notes.has(note.id)) m.notes.set(note.id, { noteId: note.id, title: note.title, definition: c.definition, excerpt: c.source_excerpt, nameInNote: c.name, viaAI: Boolean(alias && allKeys.has(alias)) });
       m.confidence = better(m.confidence, c.confidence);
     });
     const resolve = (value) => {
@@ -57,6 +62,24 @@ export function buildCrossMap(notes, { noteIds = null, onlyShared = false, maxCo
       if (!e) { e = { from: s, to: t, type: r.type, explanation: r.explanation, evidence: r.evidence, confidence: r.confidence, notes: new Map() }; edges.set(key, e); }
       e.notes.set(note.id, note.title);
       e.confidence = better(e.confidence, r.confidence);
+    });
+  });
+
+  // Ligações com anotações anteriores, criadas pela IA ao analisar cada nota.
+  const crossPairs = [];
+  used.forEach(note => {
+    const local = localByNote.get(note.id);
+    const conceptById = new Map(note.result.concepts.map(c => [c.id, c]));
+    (note.result.links?.crossLinks || []).forEach(l => {
+      const c = conceptById.get(l.from);
+      const s = c && local.get(norm(c.id));
+      const t = allKeys.has(l.toKey) ? canonical(l.toKey) : null;
+      if (!s || !t || s === t || !merged.has(t)) return;
+      const key = `${s}>${t}>x>${norm(l.type)}`;
+      let e = edges.get(key);
+      if (!e) { e = { from: s, to: t, type: l.type, explanation: l.explanation, evidence: l.evidence, confidence: l.confidence, cross: true, notes: new Map() }; edges.set(key, e); }
+      e.notes.set(note.id, note.title);
+      [...merged.get(t).notes.keys()].filter(id => id !== note.id).forEach(other => crossPairs.push({ a: note.id, b: other, text: `${c.name} → ${l.type} → ${merged.get(t).names.keys().next().value}` }));
     });
   });
 
@@ -79,15 +102,23 @@ export function buildCrossMap(notes, { noteIds = null, onlyShared = false, maxCo
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
       const [a, b] = [ids[i], ids[j]].sort();
       const key = `${a}|${b}`;
-      if (!pairMap.has(key)) pairMap.set(key, { a: used.find(n => n.id === a), b: used.find(n => n.id === b), concepts: [] });
+      if (!pairMap.has(key)) pairMap.set(key, { a: used.find(n => n.id === a), b: used.find(n => n.id === b), concepts: [], links: [] });
       pairMap.get(key).concepts.push(c.name);
     }
   });
-  const pairs = [...pairMap.values()].sort((x, y) => y.concepts.length - x.concepts.length);
-  const linkedIds = new Set(shared.flatMap(c => c.occurrences.map(o => o.noteId)));
+  crossPairs.forEach(({ a: x, b: y, text }) => {
+    const [a, b] = [x, y].sort();
+    const key = `${a}|${b}`;
+    if (!pairMap.has(key)) pairMap.set(key, { a: used.find(n => n.id === a), b: used.find(n => n.id === b), concepts: [], links: [] });
+    const p = pairMap.get(key);
+    if (!p.links.includes(text)) p.links.push(text);
+  });
+  const pairs = [...pairMap.values()].sort((x, y) => (y.concepts.length + y.links.length) - (x.concepts.length + x.links.length));
+  const linkedIds = new Set(pairs.flatMap(p => [p.a.id, p.b.id]));
   const isolatedNotes = used.filter(n => !linkedIds.has(n.id));
   const totalConcepts = concepts.length;
   const totalRelationships = relationships.length;
+  const crossCount = relationships.filter(r => r.cross).length;
 
   // Filtro: só pontes e vizinhos diretos.
   if (onlyShared && shared.length) {
@@ -108,5 +139,5 @@ export function buildCrossMap(notes, { noteIds = null, onlyShared = false, maxCo
   const visible = new Set(concepts.map(c => c.id));
   relationships = relationships.filter(r => visible.has(r.from) && visible.has(r.to));
 
-  return { concepts, relationships, shared, pairs, isolatedNotes, used, analyzed, totalConcepts, totalRelationships, hidden };
+  return { concepts, relationships, shared, pairs, isolatedNotes, used, analyzed, totalConcepts, totalRelationships, crossCount, hidden };
 }

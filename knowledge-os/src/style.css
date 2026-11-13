@@ -171,3 +171,31 @@ html{scrollbar-gutter:stable}
 .isolated-hint{margin-top:12px}
 .cross-filters .panel-head p{margin-top:2px}
 .shared-tag,.cross-tag{text-transform:none}
+
+/* Ligações entre anotações (criadas pela IA) */
+.km-edge.km-edge-cross{stroke:#f2b84b;stroke-width:2;stroke-opacity:.9}
+.km-edge.km-edge-cross.km-edge-active{stroke:#ffd27a;stroke-width:2.6}
+.km-arrow-cross{fill:#f2b84b}
+.km-label-cross rect{fill:#2a2110;stroke:#7a5d22}.km-label-cross text{fill:#f6d28e}
+.km-line.km-line-cross{border-top-color:#f2b84b}
+.cross-badge{font-size:10px;color:#f6d28e;background:#3d2f12;border:1px solid #7a5d22;border-radius:10px;padding:2px 7px}
+.alias-note{font-size:11px;color:#f6d28e;margin-left:6px}
+.pair-row p.pair-links{color:#f6d28e}
+.links-panel{border-color:#4a3c1c}
+.links-panel .panel-head h3 svg{color:#f2b84b}
+.links-sub{font-size:11px;letter-spacing:.5px;color:#9ba8ba;margin:14px 0 8px}
+.link-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.link-row{position:relative;background:#162234;border:1px solid #2a3850;border-radius:9px;padding:10px 38px 10px 11px;font-size:12px;color:#c3cdda}
+.link-row strong{color:#f1f4fa}
+.link-row p{margin:6px 0 0;line-height:1.5;font-size:12px;color:#a7b3c4}
+.link-row .km-excerpt{font-size:11px}
+.link-notes{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.link-remove{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:7px;border:1px solid #3a4763;background:transparent;color:#9aa6b8;display:grid;place-items:center;cursor:pointer}
+.link-remove:hover{border-color:#e5a0ac;color:#ffc0c8}
+.relation-type.cross-type{color:#f6d28e;background:#3d2f12}
+.note-chip.gone{opacity:.6;cursor:default}
+.links-empty{margin-top:10px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.links-empty .field-help{margin:0}
+.links-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.links-footer .field-help{margin:0}
+@media(max-width:650px){.links-footer{flex-direction:column;align-items:flex-start}}

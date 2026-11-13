@@ -30,6 +30,12 @@ Depois de abrir:
   - filtros: escolher quais anotações entram e mostrar só as pontes e seus vizinhos;
   - é calculado no próprio aparelho, sem chamar a IA; "Carregar anotações de exemplo" permite testar sem chave;
   - para continuar legível, desenha no máximo 70 conceitos (40 no celular), priorizando pontes e os mais conectados.
+- **Cada nova anotação se liga às anteriores (com IA, na mesma chamada):**
+  - ao tocar em **Organizar com IA**, o app escolhe no aparelho os conceitos das outras anotações mais parecidos com a nova (no máximo 200) e os envia junto;
+  - na mesma resposta, a IA indica **equivalências** (mesmo conceito com outro nome, ex.: "Glicose no sangue" = "Glicemia") e **ligações** com conceitos das outras anotações, com explicação, trecho que justifica e confiança;
+  - não há chamada extra: o pedido fica ~500 tokens maior com poucas anotações e ~2.500 com muitas;
+  - as ligações aparecem no painel "Ligações com outras anotações" (no mapa da nota) e em dourado na aba Conexões; dá para remover as erradas;
+  - anotações analisadas antes desta função mostram o botão "Ligar às outras anotações" (1 chamada).
 - Flashcards e questões com respostas e explicações.
 - Interface para celular com navegação inferior; instalável como PWA.
 
@@ -55,7 +61,8 @@ npm run build   # gera site/index.html (um único arquivo)
 Depois de alterar o código em `src/`, rode `npm run build` para atualizar a pasta `site/`.
 
 ## Limitações
-- O cruzamento compara nomes: se a IA chamar o mesmo conceito de formas diferentes em duas anotações (ex.: "Glicemia" e "Glicose no sangue"), eles não são ligados.
+- Ligações entre anotações são criadas quando uma nota é analisada: ela se liga às anteriores. Duas anotações antigas só se ligam se uma delas for reanalisada.
+- Ligações entre anotações costumam ser inferências: confira antes de estudar por elas.
 - Sem conta nem sincronização: as anotações ficam no navegador. Limpar os dados do navegador apaga as anotações.
 - A análise pelo Gemini exige internet.
 - A IA pode errar. Confira conceitos, relações, questões e respostas antes de estudar por eles.

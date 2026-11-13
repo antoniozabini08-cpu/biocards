@@ -317,7 +317,12 @@ const DEFAULT_LEGEND = [
 
 // legend: itens de cor da legenda; renderDetails(node, { nodes, onSelect }) substitui o
 // painel de detalhes; maxHeight aumenta o quadro para mapas com muitos conceitos.
-export default function KnowledgeMap({ concepts, relationships, selectedId, onSelect, legend = DEFAULT_LEGEND, renderDetails, maxHeight }) {
+const DEFAULT_LINES = [
+  { line: '', label: 'Relação confirmada' },
+  { line: 'km-line-dashed', label: 'Relação incerta' }
+];
+
+export default function KnowledgeMap({ concepts, relationships, selectedId, onSelect, legend = DEFAULT_LEGEND, lines = DEFAULT_LINES, renderDetails, maxHeight }) {
   const wrapRef = useRef(null);
   const svgRef = useRef(null);
   const dragRef = useRef(null);
@@ -353,7 +358,8 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
   const graph = useMemo(() => buildGraph(concepts, relationships), [concepts, relationships, fontVersion]);
   const W = Math.max(width, 300);
   const narrow = W < 600;
-  const area = graph.nodes.reduce((sum, nd) => sum + nd.w * nd.h, 0);
+  // Espaço necessário: caixas dos conceitos + espaço para o nome de cada relação.
+  const area = graph.nodes.reduce((sum, nd) => sum + nd.w * nd.h, 0) + graph.edges.reduce((sum, e) => sum + (e.labelW + 20) * 30, 0);
   const H = Math.round(Math.min(maxHeight ? maxHeight(narrow) : (narrow ? 920 : 680), Math.max(narrow ? 440 : 480, (area * 6.5) / W)));
 
   // O layout só é refeito quando algo que muda o desenho muda de verdade
@@ -467,7 +473,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
         onPointerDown={onBackgroundDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { dragRef.current = null; }}
         onKeyDown={(e) => { if (e.key === 'Escape') onSelect(null); }}>
         <defs>
-          {['base', 'active'].map(kind => <marker key={kind} id={`${uid}-arrow-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+          {['base', 'active', 'cross'].map(kind => <marker key={kind} id={`${uid}-arrow-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" className={`km-arrow km-arrow-${kind}`} />
           </marker>)}
         </defs>
@@ -477,8 +483,8 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
           const g = edgeGeometry(e, pos, graph.nodes);
           const active = edgeActive(e);
           const dim = focusIndex != null && !active;
-          return <path key={e.index} d={g.path} className={`km-edge km-conf-${e.confidence || 'media'}${active ? ' km-edge-active' : ''}${dim ? ' km-dim' : ''}`}
-            markerEnd={`url(#${uid}-arrow-${active ? 'active' : 'base'})`} />;
+          return <path key={e.index} d={g.path} className={`km-edge km-conf-${e.confidence || 'media'}${e.cross ? ' km-edge-cross' : ''}${active ? ' km-edge-active' : ''}${dim ? ' km-dim' : ''}`}
+            markerEnd={`url(#${uid}-arrow-${active ? 'active' : e.cross ? 'cross' : 'base'})`} />;
         })}</g>
 
         <g pointerEvents="none">{sortedEdges.filter(e => edgeActive(e) === false).map(e => {
@@ -487,7 +493,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
           const lp = labelPos.get(e.index);
           if (!lp) return null;
           const text = e.labelText, w = e.labelW;
-          return <g key={e.index} className={`km-label${active ? ' km-label-active' : ''}`} transform={`translate(${lp.x},${lp.y})`}>
+          return <g key={e.index} className={`km-label${e.cross ? ' km-label-cross' : ''}${active ? ' km-label-active' : ''}`} transform={`translate(${lp.x},${lp.y})`}>
             <rect x={-w / 2} y={-10} width={w} height={20} rx={10} />
             <text y={4} fontSize={11}>{text}</text>
           </g>;
@@ -513,7 +519,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
           const lp = labelPos.get(e.index);
           if (!lp) return null;
           const text = e.labelText, w = e.labelW;
-          return <g key={e.index} className={`km-label${active ? ' km-label-active' : ''}`} transform={`translate(${lp.x},${lp.y})`}>
+          return <g key={e.index} className={`km-label${e.cross ? ' km-label-cross' : ''}${active ? ' km-label-active' : ''}`} transform={`translate(${lp.x},${lp.y})`}>
             <rect x={-w / 2} y={-10} width={w} height={20} rx={10} />
             <text y={4} fontSize={11}>{text}</text>
           </g>;
@@ -523,8 +529,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
 
     <div className="km-legend">
       {legend.map(item => <span key={item.swatch}><i className={`km-swatch km-${item.swatch}`} /> {item.label}</span>)}
-      <span><i className="km-line" /> Relação confirmada</span>
-      <span><i className="km-line km-line-dashed" /> Relação incerta</span>
+      {lines.map(item => <span key={item.label}><i className={`km-line ${item.line}`} /> {item.label}</span>)}
     </div>
 
     <div className="km-details" aria-live="polite">

@@ -52,7 +52,7 @@ const c = (id, name, definition, source_excerpt, confidence = 'alta') => ({ id, 
 const r = (from, to, type, explanation, confidence = 'alta') => ({ from, to, type, explanation, evidence: explanation, confidence });
 
 export const sampleNotes = [
-  { id: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)', text: sampleNote, result: sampleResult },
+  { id: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)', text: sampleNote, result: { ...sampleResult, links: { checked: true, sameAs: [], crossLinks: [] } } },
   {
     id: 'exemplo-diabetes', title: 'Diabetes tipo 2 (exemplo)',
     text: 'O diabetes mellitus tipo 2 é caracterizado por hiperglicemia crônica. Sua principal base fisiopatológica é a resistência à insulina, associada a uma disfunção progressiva das células beta pancreáticas. A obesidade, especialmente a gordura visceral, aumenta a resistência à insulina. Com o tempo, as células beta não conseguem compensar com maior secreção de insulina, e a glicemia se eleva.',
@@ -83,7 +83,10 @@ export const sampleNotes = [
       questions: [
         { type: 'discursiva', prompt: 'Por que a glicemia se eleva com a progressão do diabetes tipo 2?', options: [], answer: 'Porque as células beta deixam de conseguir compensar a resistência à insulina com maior secreção.', explanation: 'A anotação descreve a falha da compensação ao longo do tempo.', concept: 'Células beta' }
       ],
-      gaps: ['A anotação não explica os mecanismos da disfunção das células beta.']
+      gaps: ['A anotação não explica os mecanismos da disfunção das células beta.'],
+      links: { checked: true, sameAs: [], crossLinks: [
+        { from: 'resist', toKey: 'captacao de glicose', toName: 'Captação de glicose', toNotes: [{ noteId: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)' }], type: 'reduz', explanation: 'Inferência: a anotação anterior descreve que a resistência reduz a eficiência da captação; esta anotação não detalha o mecanismo.', evidence: 'Sua principal base fisiopatológica é a resistência à insulina', confidence: 'media' }
+      ] }
     }
   },
   {
@@ -95,7 +98,7 @@ export const sampleNotes = [
         c('exerc', 'Exercício físico', 'Atividade que aumenta a captação de glicose.', 'o exercício aumenta a captação de glicose'),
         c('contr', 'Contração muscular', 'Estímulo que transloca o GLUT4 sem depender da insulina.', 'a contração muscular estimula a translocação do GLUT4'),
         c('ampk', 'AMPK', 'Via que medeia em parte a translocação do GLUT4 no exercício.', 'mediada em parte pela AMPK'),
-        c('glut4', 'GLUT4', 'Transportador de glicose levado à membrana durante a contração.', 'translocação do GLUT4 para a membrana'),
+        c('glut4', 'Transportador GLUT4', 'Transportador de glicose levado à membrana durante a contração.', 'translocação do GLUT4 para a membrana'),
         c('capt', 'Captação de glicose', 'Entrada de glicose no músculo, aumentada pelo exercício.', 'aumenta a captação de glicose'),
         c('resist', 'Resistência à insulina', 'Condição em que o exercício ainda aumenta a captação de glicose.', 'mesmo na resistência à insulina'),
         c('sens', 'Sensibilidade à insulina', 'Resposta à insulina, melhorada pelo treino regular.', 'melhora a sensibilidade à insulina')
@@ -112,7 +115,14 @@ export const sampleNotes = [
         { front: 'A translocação do GLUT4 no exercício depende da insulina?', back: 'Não. Ocorre por uma via independente, mediada em parte pela AMPK.', concept: 'GLUT4' }
       ],
       questions: [],
-      gaps: ['A anotação não detalha como a AMPK é ativada pela contração.']
+      gaps: ['A anotação não detalha como a AMPK é ativada pela contração.'],
+      links: { checked: true,
+        sameAs: [{ conceptId: 'glut4', targetKey: 'glut4', targetName: 'GLUT4', targetNotes: [{ noteId: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)' }] }],
+        crossLinks: [
+          { from: 'ampk', toKey: 'via pi3k akt', toName: 'Via PI3K/Akt', toNotes: [{ noteId: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)' }], type: 'via alternativa a', explanation: 'A AMPK leva o GLUT4 à membrana por uma via independente da insulina, alternativa à via PI3K/Akt.', evidence: 'por uma via independente da insulina, mediada em parte pela AMPK', confidence: 'alta' },
+          { from: 'capt', toKey: 'glicemia', toName: 'Glicemia', toNotes: [{ noteId: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)' }, { noteId: 'exemplo-diabetes', title: 'Diabetes tipo 2 (exemplo)' }], type: 'tende a reduzir', explanation: 'Inferência: mais captação de glicose pelo músculo tende a reduzir a glicemia; a anotação não afirma isso.', evidence: 'o exercício aumenta a captação de glicose', confidence: 'baixa' },
+          { from: 'exerc', toKey: 'obesidade visceral', toName: 'Obesidade visceral', toNotes: [{ noteId: 'exemplo-diabetes', title: 'Diabetes tipo 2 (exemplo)' }], type: 'contrapõe efeito de', explanation: 'A obesidade visceral aumenta a resistência à insulina e o exercício melhora a sensibilidade; é uma conexão inferida entre as anotações.', evidence: 'O treino regular também melhora a sensibilidade à insulina', confidence: 'baixa' }
+        ] }
     }
   }
 ];

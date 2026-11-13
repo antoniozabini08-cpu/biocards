@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrainCircuit, BookOpen, Network, Layers, ClipboardList, Plus, Sparkles, LoaderCircle, Trash2, ChevronRight, CircleHelp, Lightbulb, Check, X, Settings, KeyRound, Eye, EyeOff, Waypoints } from 'lucide-react';
 import CrossView from './CrossView.jsx';
+import NoteLinks from './NoteLinks.jsx';
+import { buildConceptIndex, selectCandidates } from './linking.js';
 import KnowledgeMap from './KnowledgeMap.jsx';
 import { analyzeNote, normalizeResult, parseSavedNotes, DEFAULT_MODEL, MODEL_OPTIONS } from './gemini.js';
 import { sampleNote, sampleResult, sampleTitle, sampleNotes } from './sample.js';
@@ -95,6 +97,15 @@ function App() {
     setNotes(prev => [...prev, ...sampleNotes.filter(sn => !prev.some(n => n.id === sn.id)).map(sn => ({ ...sn, result: normalizeResult(sn.result), updated: now }))]);
   };
 
+  // Remove uma equivalência ou ligação que a IA criou e o usuário considerou errada.
+  const removeLink = (kind, index) => {
+    if (!result?.links) return;
+    const links = { ...result.links, [kind]: result.links[kind].filter((_, i) => i !== index) };
+    const updated = { ...result, links };
+    setResult(updated);
+    if (activeId) setNotes(prev => prev.map(n => (n.id === activeId ? { ...n, result: updated, updated: new Date().toISOString() } : n)));
+  };
+
   const saveSettings = () => {
     const key = keyDraft.trim();
     const m = modelDraft.trim() || DEFAULT_MODEL;
@@ -110,7 +121,9 @@ function App() {
     if (!apiKey) { setError('Informe sua chave Gemini em Ajustes para analisar anotações.'); setTab('settings'); return; }
     setBusy(true); setError('');
     try {
-      const r = await analyzeNote(draft, { apiKey, model });
+      // Conceitos das outras anotações vão na mesma chamada, para a nota nova se ligar a elas.
+      const context = selectCandidates(buildConceptIndex(notes, activeId), draft);
+      const r = await analyzeNote(draft, { apiKey, model, context });
       showResult(r); setTab('map'); setIsSample(false);
       const item = { id: activeId || newId(), title: title.trim() || 'Anotação sem título', text: draft, result: r, updated: new Date().toISOString() };
       setActiveId(item.id); setNotes(prev => [item, ...prev.filter(n => n.id !== item.id)]);
@@ -170,6 +183,7 @@ function App() {
               <div className="panel summary-panel"><div className="panel-head"><div><h3>Síntese da IA</h3><p>Resumo da anotação</p></div><Sparkles size={17} color="#8b7cf6"/></div><p className="summary-text">{result.summary}</p><div className="panel-divider"/><h4>Conceitos identificados</h4><div className="concept-list">{result.concepts.map(c => <button type="button" className={`concept-row ${selectedConcept === c.id ? 'selected' : ''}`} key={c.id} onClick={() => selectFromList(c.id)}><div><strong>{c.name}</strong><p>{c.definition}</p></div><span className={`confidence ${c.confidence}`}>{c.confidence}</span></button>)}</div></div>
               <div className="panel relation-panel"><div className="panel-head"><div><h3>Relações identificadas</h3><p>Confira se as conexões fazem sentido.</p></div></div>{result.relationships.map((r,i)=><div className="relation-row" key={i}><button type="button" className="relation-node" onClick={() => selectFromList(r.from)}>{conceptName(r.from)}</button><span className="relation-type">{r.type}</span><ChevronRight size={13} className="relation-arrow"/><button type="button" className="relation-node" onClick={() => selectFromList(r.to)}>{conceptName(r.to)}</button><p>{r.explanation} <small>Confiança: {r.confidence}</small></p></div>)}</div>
             </div>
+            {activeId && <NoteLinks result={result} notes={notes} activeId={activeId} onOpenNote={loadNote} onRemove={removeLink} onReconnect={analyze} busy={busy} canAnalyze={Boolean(apiKey) && draft.trim().length >= 30}/>}
             {result.gaps?.length > 0 && <div className="panel gaps-panel"><h3><CircleHelp size={17}/> Pontos que merecem aprofundamento</h3>{result.gaps.map((g,i)=><p key={i}>• {g}</p>)}</div>}
           </>}
         </section>}
