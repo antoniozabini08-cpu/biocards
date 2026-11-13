@@ -14,7 +14,9 @@ Depois de abrir:
 3. Sem chave, você ainda pode tocar em **Ver exemplo** para conhecer o mapa.
 
 ## O que o app faz
-- Editor de anotações, salvas no armazenamento do navegador.
+- Editor com **salvamento automático**: salva sozinho enquanto você escreve, ao trocar de anotação e ao fechar a página.
+- **Backup em arquivo** (Ajustes → Baixar backup / Importar backup): guarda todas as anotações e análises num .json, sem a chave Gemini. Serve para não perder nada e para passar as anotações para outro aparelho.
+- Se o navegador não deixar salvar (janela anônima, arquivo aberto por um visualizador, cookies bloqueados), o app avisa na hora e oferece o backup.
 - Extração de conceitos, relações, síntese e pontos a aprofundar usando Gemini.
 - **Mapa de conhecimento interativo:**
   - setas mostram o sentido de cada relação, com o nome da relação na seta;
@@ -63,7 +65,7 @@ Depois de alterar o código em `src/`, rode `npm run build` para atualizar a pas
 ## Limitações
 - Ligações entre anotações são criadas quando uma nota é analisada: ela se liga às anteriores. Duas anotações antigas só se ligam se uma delas for reanalisada.
 - Ligações entre anotações costumam ser inferências: confira antes de estudar por elas.
-- Sem conta nem sincronização: as anotações ficam no navegador. Limpar os dados do navegador apaga as anotações.
+- Sem conta nem sincronização: as anotações ficam no navegador. Limpar os dados do navegador apaga as anotações; faça backups de vez em quando.
 - A análise pelo Gemini exige internet.
 - A IA pode errar. Confira conceitos, relações, questões e respostas antes de estudar por eles.
 - Não insira dados identificáveis de pacientes nem outras informações sensíveis.

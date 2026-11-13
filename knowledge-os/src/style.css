@@ -199,3 +199,13 @@ html{scrollbar-gutter:stable}
 .links-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
 .links-footer .field-help{margin:0}
 @media(max-width:650px){.links-footer{flex-direction:column;align-items:flex-start}}
+
+/* Salvamento e backup */
+.save-status{display:flex;align-items:center;gap:6px}
+.save-status.saved{color:#7bd6a9}.save-status.pending{color:#a7b3c4}.save-status.error{color:#ffb3bd}
+.storage-banner{align-items:flex-start}.storage-banner p{margin:5px 0 0;line-height:1.5;color:#f3c9cf}
+.storage-panel h3 svg{vertical-align:-2px;margin-right:4px;color:#a69aff}
+.storage-state{display:flex;align-items:center;gap:7px;font-weight:600}
+.storage-state.ok{color:#7bd6a9}.storage-state.bad{color:#ffb3bd}
+.storage-panel .settings-actions{margin:12px 0 6px}
+.storage-panel .saved-msg{margin:6px 0}
