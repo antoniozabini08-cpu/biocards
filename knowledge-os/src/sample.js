@@ -45,3 +45,74 @@ export const sampleResult = {
     'Outros tecidos-alvo da insulina (por exemplo, o fígado) não são mencionados.'
   ]
 };
+
+// Mais duas anotações de exemplo, que compartilham conceitos com a da insulina,
+// para experimentar a aba Conexões sem chave Gemini.
+const c = (id, name, definition, source_excerpt, confidence = 'alta') => ({ id, name, definition, source_excerpt, confidence });
+const r = (from, to, type, explanation, confidence = 'alta') => ({ from, to, type, explanation, evidence: explanation, confidence });
+
+export const sampleNotes = [
+  { id: 'exemplo-insulina', title: 'Fisiologia da insulina (exemplo)', text: sampleNote, result: sampleResult },
+  {
+    id: 'exemplo-diabetes', title: 'Diabetes tipo 2 (exemplo)',
+    text: 'O diabetes mellitus tipo 2 é caracterizado por hiperglicemia crônica. Sua principal base fisiopatológica é a resistência à insulina, associada a uma disfunção progressiva das células beta pancreáticas. A obesidade, especialmente a gordura visceral, aumenta a resistência à insulina. Com o tempo, as células beta não conseguem compensar com maior secreção de insulina, e a glicemia se eleva.',
+    result: {
+      summary: 'O diabetes tipo 2 combina resistência à insulina, agravada pela obesidade visceral, com falência progressiva das células beta, o que eleva a glicemia de forma crônica.',
+      concepts: [
+        c('dm2', 'Diabetes tipo 2', 'Doença caracterizada por hiperglicemia crônica.', 'caracterizado por hiperglicemia crônica'),
+        c('hiper', 'Hiperglicemia', 'Glicemia persistentemente elevada.', 'hiperglicemia crônica'),
+        c('resist', 'Resistência à insulina', 'Principal base fisiopatológica do diabetes tipo 2.', 'Sua principal base fisiopatológica é a resistência à insulina'),
+        c('beta', 'Células beta', 'Células pancreáticas que sofrem disfunção progressiva.', 'disfunção progressiva das células beta'),
+        c('obes', 'Obesidade visceral', 'Excesso de gordura visceral que aumenta a resistência à insulina.', 'A obesidade, especialmente a gordura visceral'),
+        c('secr', 'Secreção de insulina', 'Resposta compensatória das células beta que falha com o tempo.', 'compensar com maior secreção de insulina'),
+        c('glic', 'Glicemia', 'Nível de glicose no sangue, que se eleva com a progressão.', 'a glicemia se eleva')
+      ],
+      relationships: [
+        r('dm2', 'hiper', 'caracteriza-se por', 'O diabetes tipo 2 é caracterizado por hiperglicemia crônica.'),
+        r('resist', 'dm2', 'é base de', 'A resistência à insulina é a principal base fisiopatológica.'),
+        r('obes', 'resist', 'aumenta', 'A obesidade visceral aumenta a resistência à insulina.'),
+        r('beta', 'secr', 'realizam', 'As células beta tentam compensar com maior secreção.'),
+        r('secr', 'resist', 'compensa', 'A maior secreção tenta compensar a resistência.', 'media'),
+        r('beta', 'dm2', 'disfunção contribui para', 'A disfunção das células beta participa da doença.'),
+        r('hiper', 'glic', 'é elevação de', 'Hiperglicemia é a glicemia elevada.', 'media')
+      ],
+      flashcards: [
+        { front: 'Qual a principal base fisiopatológica do diabetes tipo 2?', back: 'A resistência à insulina.', concept: 'Resistência à insulina' },
+        { front: 'Que tipo de gordura mais aumenta a resistência à insulina?', back: 'A gordura visceral.', concept: 'Obesidade visceral' }
+      ],
+      questions: [
+        { type: 'discursiva', prompt: 'Por que a glicemia se eleva com a progressão do diabetes tipo 2?', options: [], answer: 'Porque as células beta deixam de conseguir compensar a resistência à insulina com maior secreção.', explanation: 'A anotação descreve a falha da compensação ao longo do tempo.', concept: 'Células beta' }
+      ],
+      gaps: ['A anotação não explica os mecanismos da disfunção das células beta.']
+    }
+  },
+  {
+    id: 'exemplo-exercicio', title: 'Exercício físico e glicose (exemplo)',
+    text: 'Durante o exercício físico, a contração muscular estimula a translocação do GLUT4 para a membrana por uma via independente da insulina, mediada em parte pela AMPK. Por isso o exercício aumenta a captação de glicose mesmo na resistência à insulina. O treino regular também melhora a sensibilidade à insulina.',
+    result: {
+      summary: 'A contração muscular leva o GLUT4 à membrana por uma via independente da insulina (AMPK), aumentando a captação de glicose mesmo na resistência à insulina; o treino regular melhora a sensibilidade à insulina.',
+      concepts: [
+        c('exerc', 'Exercício físico', 'Atividade que aumenta a captação de glicose.', 'o exercício aumenta a captação de glicose'),
+        c('contr', 'Contração muscular', 'Estímulo que transloca o GLUT4 sem depender da insulina.', 'a contração muscular estimula a translocação do GLUT4'),
+        c('ampk', 'AMPK', 'Via que medeia em parte a translocação do GLUT4 no exercício.', 'mediada em parte pela AMPK'),
+        c('glut4', 'GLUT4', 'Transportador de glicose levado à membrana durante a contração.', 'translocação do GLUT4 para a membrana'),
+        c('capt', 'Captação de glicose', 'Entrada de glicose no músculo, aumentada pelo exercício.', 'aumenta a captação de glicose'),
+        c('resist', 'Resistência à insulina', 'Condição em que o exercício ainda aumenta a captação de glicose.', 'mesmo na resistência à insulina'),
+        c('sens', 'Sensibilidade à insulina', 'Resposta à insulina, melhorada pelo treino regular.', 'melhora a sensibilidade à insulina')
+      ],
+      relationships: [
+        r('exerc', 'contr', 'envolve', 'O exercício envolve contração muscular.', 'media'),
+        r('contr', 'ampk', 'ativa', 'A contração ativa a AMPK, em parte.', 'media'),
+        r('ampk', 'glut4', 'promove translocação', 'A AMPK participa da translocação do GLUT4.', 'media'),
+        r('glut4', 'capt', 'aumenta', 'O GLUT4 na membrana aumenta a captação de glicose.'),
+        r('exerc', 'resist', 'contorna', 'O exercício aumenta a captação mesmo na resistência à insulina.'),
+        r('exerc', 'sens', 'melhora', 'O treino regular melhora a sensibilidade à insulina.')
+      ],
+      flashcards: [
+        { front: 'A translocação do GLUT4 no exercício depende da insulina?', back: 'Não. Ocorre por uma via independente, mediada em parte pela AMPK.', concept: 'GLUT4' }
+      ],
+      questions: [],
+      gaps: ['A anotação não detalha como a AMPK é ativada pela contração.']
+    }
+  }
+];

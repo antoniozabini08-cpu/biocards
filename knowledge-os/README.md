@@ -22,6 +22,14 @@ Depois de abrir:
   - toque em um conceito para destacar só as conexões dele e ver definição, trecho de origem e relações;
   - arraste conceitos para reorganizar; use os botões de zoom em mapas grandes;
   - toque em um conceito ou relação nas listas abaixo do mapa para encontrá-lo no mapa.
+- **Aba Conexões (mapa cruzado):** junta os mapas de todas as anotações analisadas em um só.
+  - conceitos com o mesmo nome em anotações diferentes viram um único conceito (ignora acentos, maiúsculas, artigos e plural simples);
+  - os que aparecem em 2 ou mais anotações são **pontes** (destacados em dourado);
+  - ao tocar num conceito, mostra a definição de cada anotação e de qual anotação vem cada relação;
+  - lista as pontes e os pares de anotações com o que têm em comum; dá para abrir a anotação direto dali;
+  - filtros: escolher quais anotações entram e mostrar só as pontes e seus vizinhos;
+  - é calculado no próprio aparelho, sem chamar a IA; "Carregar anotações de exemplo" permite testar sem chave;
+  - para continuar legível, desenha no máximo 70 conceitos (40 no celular), priorizando pontes e os mais conectados.
 - Flashcards e questões com respostas e explicações.
 - Interface para celular com navegação inferior; instalável como PWA.
 
@@ -47,6 +55,7 @@ npm run build   # gera site/index.html (um único arquivo)
 Depois de alterar o código em `src/`, rode `npm run build` para atualizar a pasta `site/`.
 
 ## Limitações
+- O cruzamento compara nomes: se a IA chamar o mesmo conceito de formas diferentes em duas anotações (ex.: "Glicemia" e "Glicose no sangue"), eles não são ligados.
 - Sem conta nem sincronização: as anotações ficam no navegador. Limpar os dados do navegador apaga as anotações.
 - A análise pelo Gemini exige internet.
 - A IA pode errar. Confira conceitos, relações, questões e respostas antes de estudar por eles.

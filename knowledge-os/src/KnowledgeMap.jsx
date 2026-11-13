@@ -87,7 +87,8 @@ export function buildGraph(concepts = [], relationships = []) {
   const degrees = nodes.map(n => n.degree).sort((a, b) => b - a);
   const maxDegree = degrees[0] || 0;
   const cut = Math.max(2, maxDegree * 0.75, degrees[Math.max(0, Math.ceil(nodes.length * 0.3) - 1)] || 0);
-  nodes.forEach(n => { n.tier = n.degree === 0 ? 'isolated' : (n.degree >= cut ? 'central' : 'linked'); });
+  // Um conceito pode trazer sua própria categoria (ex.: 'shared' no mapa cruzado).
+  nodes.forEach(n => { n.tier = n.tier || (n.degree === 0 ? 'isolated' : (n.degree >= cut ? 'central' : 'linked')); });
   return { nodes, edges, unresolved };
 }
 
@@ -115,6 +116,9 @@ function computeLayout(nodes, edges, W, H) {
   const k = Math.sqrt((W * H) / n) * 0.62;
   let temp = Math.min(W, H) / 5;
   const radius = nodes.map(nd => (nd.w + nd.h) / 4);
+  // Com muitos conceitos a repulsão soma mais; a gravidade cresce junto para eles
+  // não se acumularem nas bordas do quadro.
+  const gravity = 0.1 * Math.max(1, n / 12);
 
   for (let it = 0; it < 450; it++) {
     const disp = pos.map(() => ({ x: 0, y: 0 }));
@@ -158,8 +162,8 @@ function computeLayout(nodes, edges, W, H) {
       }
     }
     for (let i = 0; i < n; i++) {
-      disp[i].x += (cx - pos[i].x) * 0.1;
-      disp[i].y += (cy - pos[i].y) * 0.1;
+      disp[i].x += (cx - pos[i].x) * gravity;
+      disp[i].y += (cy - pos[i].y) * gravity;
       const len = Math.hypot(disp[i].x, disp[i].y);
       if (len > 0) {
         const step = Math.min(len, temp);
@@ -214,7 +218,17 @@ function computeLayout(nodes, edges, W, H) {
       const a = pos[i], b = pos[j], A = nodes[i], B = nodes[j];
       const dx = a.x - b.x, dy = a.y - b.y;
       const ox = (A.w + B.w) / 2 + 16 - Math.abs(dx), oy = (A.h + B.h) / 2 + 12 - Math.abs(dy);
-      if (ox > 0 && oy > 0) { moved = true; push(a, A, b, B, ox, oy, dx, dy); clamp(a, A); clamp(b, B); }
+      if (ox > 0 && oy > 0) {
+        moved = true;
+        push(a, A, b, B, ox, oy, dx, dy); clamp(a, A); clamp(b, B);
+        // Se a borda impediu a separação, separa no outro eixo.
+        const ox2 = (A.w + B.w) / 2 + 16 - Math.abs(a.x - b.x), oy2 = (A.h + B.h) / 2 + 12 - Math.abs(a.y - b.y);
+        if (ox2 > 0 && oy2 > 0) {
+          if (ox / (A.w + B.w) < oy / (A.h + B.h)) { const s = (a.y >= b.y ? 1 : -1) * (oy2 / 2 + 1); a.y += s; b.y -= s; }
+          else { const s = (a.x >= b.x ? 1 : -1) * (ox2 / 2 + 1); a.x += s; b.x -= s; }
+          clamp(a, A); clamp(b, B);
+        }
+      }
     }
     if (!moved) break;
   }
@@ -295,7 +309,15 @@ const truncate = (s, max) => (s.length > max ? s.slice(0, max - 1) + '…' : s);
 
 // ---------- Componente ----------
 
-export default function KnowledgeMap({ concepts, relationships, selectedId, onSelect }) {
+const DEFAULT_LEGEND = [
+  { swatch: 'central', label: 'Conceito central' },
+  { swatch: 'linked', label: 'Conceito conectado' },
+  { swatch: 'isolated', label: 'Sem conexões' }
+];
+
+// legend: itens de cor da legenda; renderDetails(node, { nodes, onSelect }) substitui o
+// painel de detalhes; maxHeight aumenta o quadro para mapas com muitos conceitos.
+export default function KnowledgeMap({ concepts, relationships, selectedId, onSelect, legend = DEFAULT_LEGEND, renderDetails, maxHeight }) {
   const wrapRef = useRef(null);
   const svgRef = useRef(null);
   const dragRef = useRef(null);
@@ -332,7 +354,7 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
   const W = Math.max(width, 300);
   const narrow = W < 600;
   const area = graph.nodes.reduce((sum, nd) => sum + nd.w * nd.h, 0);
-  const H = Math.round(Math.min(narrow ? 920 : 680, Math.max(narrow ? 440 : 480, (area * 6.5) / W)));
+  const H = Math.round(Math.min(maxHeight ? maxHeight(narrow) : (narrow ? 920 : 680), Math.max(narrow ? 440 : 480, (area * 6.5) / W)));
 
   // O layout só é refeito quando algo que muda o desenho muda de verdade
   // (conceitos, relações, medidas dos textos ou tamanho do quadro).
@@ -500,15 +522,13 @@ export default function KnowledgeMap({ concepts, relationships, selectedId, onSe
     </div>
 
     <div className="km-legend">
-      <span><i className="km-swatch km-central" /> Conceito central</span>
-      <span><i className="km-swatch km-linked" /> Conceito conectado</span>
-      <span><i className="km-swatch km-isolated" /> Sem conexões</span>
+      {legend.map(item => <span key={item.swatch}><i className={`km-swatch km-${item.swatch}`} /> {item.label}</span>)}
       <span><i className="km-line" /> Relação confirmada</span>
       <span><i className="km-line km-line-dashed" /> Relação incerta</span>
     </div>
 
     <div className="km-details" aria-live="polite">
-      {!selected ? <p className="km-hint">Toque em um conceito para destacar suas conexões. Arraste os conceitos para reorganizar o mapa{graph.edges.length > labelLimit ? '; aproxime para ver o nome de todas as relações' : ''}.</p> : <>
+      {!selected ? <p className="km-hint">Toque em um conceito para destacar suas conexões. Arraste os conceitos para reorganizar o mapa{graph.edges.length > labelLimit ? '; aproxime para ver o nome de todas as relações' : ''}.</p> : renderDetails ? renderDetails(selected, { nodes: graph.nodes, onSelect }) : <>
         <div className="km-details-head"><div><span className={`km-swatch km-${selected.tier}`} /><strong>{selected.name}</strong></div><span className={`confidence ${selected.confidence}`}>{selected.confidence}</span></div>
         <p className="km-definition">{selected.definition}</p>
         {selected.source_excerpt && <p className="km-excerpt">“{selected.source_excerpt}”</p>}

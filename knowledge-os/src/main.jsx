@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrainCircuit, BookOpen, Network, Layers, ClipboardList, Plus, Sparkles, LoaderCircle, Trash2, ChevronRight, CircleHelp, Lightbulb, Check, X, Settings, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { BrainCircuit, BookOpen, Network, Layers, ClipboardList, Plus, Sparkles, LoaderCircle, Trash2, ChevronRight, CircleHelp, Lightbulb, Check, X, Settings, KeyRound, Eye, EyeOff, Waypoints } from 'lucide-react';
+import CrossView from './CrossView.jsx';
 import KnowledgeMap from './KnowledgeMap.jsx';
 import { analyzeNote, normalizeResult, parseSavedNotes, DEFAULT_MODEL, MODEL_OPTIONS } from './gemini.js';
-import { sampleNote, sampleResult, sampleTitle } from './sample.js';
+import { sampleNote, sampleResult, sampleTitle, sampleNotes } from './sample.js';
 import './style.css';
 
 // localStorage pode falhar (modo privado, arquivo aberto localmente em alguns navegadores).
@@ -27,7 +28,7 @@ function loadNotes() {
 const initialLoad = loadNotes();
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-const TAB_NAMES = { editor: 'Anotações', map: 'Mapa de conhecimento', cards: 'Flashcards', questions: 'Questões', settings: 'Ajustes' };
+const TAB_NAMES = { editor: 'Anotações', map: 'Mapa de conhecimento', cross: 'Conexões', cards: 'Flashcards', questions: 'Questões', settings: 'Ajustes' };
 
 function App() {
   const [notes, setNotes] = useState(initialLoad.notes);
@@ -88,6 +89,12 @@ function App() {
   const removeNote = (id) => { setNotes(prev => prev.filter(n => n.id !== id)); if (activeId === id) newNote(); };
   const loadSample = () => { setActiveId(null); setTitle(sampleTitle); setDraft(sampleNote); showResult(normalizeResult(sampleResult)); setError(''); setIsSample(true); setTab('map'); };
 
+  // Adiciona as anotações de exemplo (sem duplicar) para experimentar a aba Conexões.
+  const loadSampleNotes = () => {
+    const now = new Date().toISOString();
+    setNotes(prev => [...prev, ...sampleNotes.filter(sn => !prev.some(n => n.id === sn.id)).map(sn => ({ ...sn, result: normalizeResult(sn.result), updated: now }))]);
+  };
+
   const saveSettings = () => {
     const key = keyDraft.trim();
     const m = modelDraft.trim() || DEFAULT_MODEL;
@@ -129,6 +136,7 @@ function App() {
       <div className="side-label">ESPAÇO DE TRABALHO</div>
       {navButton('editor', BookOpen, 'Anotações')}
       {navButton('map', Network, 'Mapa')}
+      {navButton('cross', Waypoints, 'Conexões')}
       {navButton('cards', Layers, 'Flashcards', result?.flashcards?.length || 0)}
       {navButton('questions', ClipboardList, 'Questões', result?.questions?.length || 0)}
       {navButton('settings', Settings, 'Ajustes')}
@@ -165,6 +173,8 @@ function App() {
             {result.gaps?.length > 0 && <div className="panel gaps-panel"><h3><CircleHelp size={17}/> Pontos que merecem aprofundamento</h3>{result.gaps.map((g,i)=><p key={i}>• {g}</p>)}</div>}
           </>}
         </section>}
+
+        {tab === 'cross' && <CrossView notes={notes} onOpenNote={loadNote} onGoEditor={() => setTab('editor')} onLoadSamples={loadSampleNotes}/>}
 
         {tab === 'cards' && <section><div className="page-heading"><div><div className="eyebrow">APRENDIZAGEM ATIVA</div><h1>Flashcards</h1><p>Teste sua recuperação ativa. Clique no cartão para revelar a resposta.</p></div></div>{!result?.flashcards?.length ? <div className="empty-state"><div className="empty-icon"><Layers size={30}/></div><h2>Nenhum flashcard ainda</h2><p>Analise uma anotação para gerar cartões de estudo.</p><button className="button primary" onClick={() => setTab('editor')}>Ir para anotações</button></div> : <div className="cards-grid">{result.flashcards.map((c,i)=><button className={`flashcard ${revealed[i]?'revealed':''}`} key={i} onClick={()=>setRevealed(p=>({...p,[i]:!p[i]}))}><span className="card-number">CARTÃO {String(i+1).padStart(2,'0')}</span><span className="card-label">{revealed[i]?'RESPOSTA':'PERGUNTA'}</span><strong>{revealed[i]?c.back:c.front}</strong><span className="card-bottom">{c.concept} · {revealed[i]?'Clique para voltar':'Toque para revelar'}</span></button>)}</div>}</section>}
 
