@@ -14,6 +14,12 @@ Depois de abrir:
 3. Sem chave, você ainda pode tocar em **Ver exemplo** para conhecer o mapa.
 
 ## O que o app faz
+- **Editor em blocos, estilo Notion:**
+  - blocos: texto, título, subtítulo, subtítulo menor, lista com marcadores, lista numerada (com sublistas via Tab), **lista expansível** e separador; negrito e itálico;
+  - escolha pela barra de blocos, digitando **"/"** (menu filtrável) ou com atalhos: `# `, `## `, `### `, `- `, `1. `, `> ` (lista expansível) e `---`;
+  - na lista expansível: Enter no título entra no conteúdo; Enter numa linha vazia no fim sai da lista;
+  - a IA recebe a estrutura (títulos e listas) junto com o texto.
+- **Ler a nota como você escreveu:** modo **Ler** (as listas expansíveis abrem e fecham com um toque), **Baixar** a nota formatada como página `.html` (abre em qualquer navegador, sem o app) e **PDF** (abre a impressão; escolha "Salvar como PDF"). Anotações antigas, só em texto, são convertidas em blocos ao abrir.
 - Editor com **salvamento automático**: salva sozinho enquanto você escreve, ao trocar de anotação e ao fechar a página.
 - **Backup em arquivo** (Ajustes → Baixar backup / Importar backup): guarda todas as anotações e análises num .json, sem a chave Gemini. Serve para não perder nada e para passar as anotações para outro aparelho.
 - Se o navegador não deixar salvar (janela anônima, arquivo aberto por um visualizador, cookies bloqueados), o app avisa na hora e oferece o backup.

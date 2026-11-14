@@ -229,7 +229,9 @@ export function parseSavedNotes(raw) {
     if (isObj(n.result)) result = normalizeResult(n.result);
     else if (n.result != null) damaged = true;
     if (id !== n.id || title !== n.title || text !== n.text) damaged = true;
-    notes.push({ id, title, text, result, updated: str(n.updated), analyzedText: str(n.analyzedText) });
+    // doc: anotação em blocos (estilo Notion); é validada pelo editor ao abrir.
+    const doc = isObj(n.doc) && n.doc.type === 'doc' ? n.doc : undefined;
+    notes.push({ id, title, text, result, updated: str(n.updated), analyzedText: str(n.analyzedText), ...(doc ? { doc } : {}) });
   });
   return { notes, damaged };
 }

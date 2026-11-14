@@ -1,12 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrainCircuit, BookOpen, Network, Layers, ClipboardList, Plus, Sparkles, LoaderCircle, Trash2, ChevronRight, CircleHelp, Lightbulb, Check, X, Settings, KeyRound, Eye, EyeOff, Waypoints, Download, Upload, HardDrive, TriangleAlert, CircleCheck } from 'lucide-react';
+import { BrainCircuit, BookOpen, Network, Layers, ClipboardList, Plus, Sparkles, LoaderCircle, Trash2, ChevronRight, CircleHelp, Lightbulb, Check, X, Settings, KeyRound, Eye, EyeOff, Waypoints, Download, Upload, HardDrive, TriangleAlert, CircleCheck, PencilLine, BookOpenText, FileDown, Printer } from 'lucide-react';
+import NoteEditor from './NoteEditor.jsx';
+import { docToText, docToHTML, textToDoc, sanitizeDoc, emptyDoc, downloadNoteHTML, printNote } from './noteDoc.js';
 import CrossView from './CrossView.jsx';
 import NoteLinks from './NoteLinks.jsx';
 import { buildConceptIndex, selectCandidates } from './linking.js';
 import KnowledgeMap from './KnowledgeMap.jsx';
 import { analyzeNote, normalizeResult, parseSavedNotes, DEFAULT_MODEL, MODEL_OPTIONS } from './gemini.js';
-import { sampleNote, sampleResult, sampleTitle, sampleNotes } from './sample.js';
+import { sampleNote, sampleResult, sampleTitle, sampleNotes, sampleDoc } from './sample.js';
+
+const noteDoc = (n) => sanitizeDoc(n?.doc) || textToDoc(n?.text || '');
 import './style.css';
 
 // localStorage pode falhar (janela anônima, arquivo aberto por um visualizador,
@@ -81,7 +85,12 @@ function App() {
   const importRef = useRef(null);
   const [recoveryNotice, setRecoveryNotice] = useState(initialLoad.backupKey);
   const [activeId, setActiveId] = useState(null);
-  const [draft, setDraft] = useState(sampleNote);
+  // A anotação é um documento em blocos (doc) e também texto estruturado (draft),
+  // que é o que vai para a IA. editorKey reinicia o editor ao trocar de anotação.
+  const [doc, setDoc] = useState(sampleDoc);
+  const [draft, setDraft] = useState(() => docToText(sampleDoc));
+  const [editorKey, setEditorKey] = useState(0);
+  const [noteMode, setNoteMode] = useState('edit'); // edit | read
   const [title, setTitle] = useState(sampleTitle);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -127,7 +136,7 @@ function App() {
   // anotação e ao fechar/minimizar a página. Refs guardam os valores mais recentes
   // para o salvamento funcionar mesmo durante o fechamento da página.
   const live = useRef({});
-  live.current = { notes, activeId, title, draft, result, isSample };
+  live.current = { notes, activeId, title, draft, doc, result, isSample };
   const dirty = useRef(false);
   const timer = useRef(null);
   const saveNow = () => {
@@ -142,6 +151,7 @@ function App() {
       id: existing ? existing.id : newId(),
       title: t.trim() || 'Anotação sem título',
       text,
+      doc: live.current.doc,
       result: existing ? existing.result : (live.current.result || null),
       updated: new Date().toISOString()
     };
@@ -154,6 +164,18 @@ function App() {
     setSaveStatus(ok ? 'saved' : 'error');
     if (!ok) setStorageOk(false);
     return item.id;
+  };
+  const markDirty = () => {
+    dirty.current = true;
+    setSaveStatus('pending');
+    clearTimeout(timer.current);
+    timer.current = setTimeout(saveNow, 600);
+  };
+  // Chamado pelo editor a cada mudança: guarda os blocos e o texto para a IA.
+  const onDocChange = (nextDoc, text) => {
+    setDoc(nextDoc); setDraft(text);
+    live.current = { ...live.current, doc: nextDoc, draft: text };
+    markDirty();
   };
   const edit = (setter) => (e) => {
     setter(e.target.value);
@@ -204,15 +226,23 @@ function App() {
   const installApp = async () => { if (!installPrompt) return; await installPrompt.prompt(); setInstallPrompt(null); };
 
   const showResult = (r) => { setResult(r); setSession(n => n + 1); setSelectedConcept(null); };
-  const saveNote = () => { dirty.current = true; saveNow(); };
-  const loadNote = (item) => { saveNow(); setActiveId(item.id); setTitle(item.title); setDraft(item.text); showResult(item.result); setError(''); setIsSample(false); setTab(item.result ? 'map' : 'editor'); };
-  const newNote = () => { saveNow(); setActiveId(null); setTitle('Nova anotação'); setDraft(''); showResult(null); setError(''); setIsSample(false); setTab('editor'); };
+  // Abrir uma anotação mostra o texto como você escreveu (modo leitura).
+  const loadNote = (item) => {
+    saveNow();
+    const d = noteDoc(item);
+    setActiveId(item.id); setTitle(item.title); setDoc(d); setDraft(item.text); setEditorKey(k => k + 1);
+    setNoteMode(item.text.trim() ? 'read' : 'edit');
+    showResult(item.result); setError(''); setIsSample(false);
+    // Vendo o mapa, flashcards ou questões: continua na mesma aba (se a nota já foi analisada).
+    setTab(t => (['map', 'cards', 'questions'].includes(t) && item.result ? t : 'editor'));
+  };
+  const newNote = () => { saveNow(); setActiveId(null); setTitle('Nova anotação'); setDoc(emptyDoc()); setDraft(''); setEditorKey(k => k + 1); setNoteMode('edit'); showResult(null); setError(''); setIsSample(false); setTab('editor'); };
   const removeNote = (id) => {
     if (activeId === id) { clearTimeout(timer.current); dirty.current = false; }
     setNotes(prev => prev.filter(n => n.id !== id));
     if (activeId === id) newNote();
   };
-  const loadSample = () => { setActiveId(null); setTitle(sampleTitle); setDraft(sampleNote); showResult(normalizeResult(sampleResult)); setError(''); setIsSample(true); setTab('map'); };
+  const loadSample = () => { saveNow(); setActiveId(null); setTitle(sampleTitle); setDoc(sampleDoc); setDraft(docToText(sampleDoc)); setEditorKey(k => k + 1); showResult(normalizeResult(sampleResult)); setError(''); setIsSample(true); setTab('map'); };
 
   // Adiciona as anotações de exemplo (sem duplicar) para experimentar a aba Conexões.
   const loadSampleNotes = () => {
@@ -298,8 +328,23 @@ function App() {
         {error && <div className="error-banner"><X size={17}/>{error}</div>}
 
         {tab === 'editor' && <section className="editor-view">
-          <div className="page-heading"><div><div className="eyebrow">CAPTURA DE CONHECIMENTO</div><h1>Suas anotações</h1><p>Escreva livremente. A IA identifica os conceitos e constrói conexões.</p></div><button className="button secondary" onClick={saveNote}>Salvar anotação</button></div>
-          <div className="editor-card"><input className="title-input" value={title} onChange={edit(setTitle)} placeholder="Título da anotação"/><div className="editor-meta"><span className={`save-status ${saveStatus}`}>{saveStatus === 'error' ? <><TriangleAlert size={12}/> Não foi possível salvar neste navegador</> : saveStatus === 'pending' ? <><LoaderCircle className="spin" size={12}/> Salvando…</> : saveStatus === 'saved' ? <><CircleCheck size={12}/> Salvo automaticamente</> : <><span className="green-dot"/> Salvamento automático</>}</span><span>{draft.length.toLocaleString('pt-BR')} caracteres</span></div><textarea value={draft} onChange={edit(setDraft)} placeholder="Comece a escrever seu conhecimento aqui..."/><div className="editor-footer"><span>O texto é salvo sozinho enquanto você escreve.</span><button className="button primary" disabled={busy || draft.trim().length < 30} onClick={analyze}>{busy ? <><LoaderCircle className="spin" size={16}/> Analisando...</> : <><Sparkles size={16}/> Organizar com IA</>}</button></div></div>
+          <div className="page-heading note-heading"><div><div className="eyebrow">{noteMode === 'read' ? 'LEITURA' : 'CAPTURA DE CONHECIMENTO'}</div><h1>{noteMode === 'read' ? 'Sua anotação' : 'Suas anotações'}</h1><p>{noteMode === 'read' ? 'Do jeito que você escreveu. Toque nas listas expansíveis para abrir.' : 'Escreva em blocos: títulos, listas e listas expansíveis. A IA organiza os conceitos.'}</p></div>
+            <div className="note-actions">
+              <div className="segmented" role="group" aria-label="Modo da anotação">
+                <button type="button" className={noteMode === 'edit' ? 'on' : ''} aria-pressed={noteMode === 'edit'} onClick={() => setNoteMode('edit')}><PencilLine size={15}/> Editar</button>
+                <button type="button" className={noteMode === 'read' ? 'on' : ''} aria-pressed={noteMode === 'read'} onClick={() => { saveNow(); setNoteMode('read'); }}><BookOpenText size={15}/> Ler</button>
+              </div>
+              <button type="button" className="button secondary small" disabled={!draft.trim()} onClick={() => { saveNow(); downloadNoteHTML({ title, doc, updated: live.current.notes.find(n => n.id === live.current.activeId)?.updated }); }} title="Baixa a anotação formatada como página (.html), para ler em qualquer navegador, mesmo sem o app"><FileDown size={15}/> Baixar</button>
+              <button type="button" className="button secondary small" disabled={!draft.trim()} onClick={() => { saveNow(); if (!printNote({ title, doc, updated: live.current.notes.find(n => n.id === live.current.activeId)?.updated })) setError('O navegador bloqueou a janela de impressão. Permita pop-ups para este app ou use "Baixar".'); }} title="Imprimir ou salvar como PDF"><Printer size={15}/> PDF</button>
+            </div>
+          </div>
+          {noteMode === 'read' ? <article className="read-card">
+            <h1 className="read-title">{title || 'Anotação sem título'}</h1>
+            <p className="read-meta">{(() => { const n = notes.find(x => x.id === activeId); return n?.updated ? `Atualizada em ${new Date(n.updated).toLocaleString('pt-BR')}` : 'Ainda não salva'; })()} · {draft.length.toLocaleString('pt-BR')} caracteres</p>
+            {draft.trim() ? <div className="nb-content nb-read" dangerouslySetInnerHTML={{ __html: docToHTML(doc) }}/> : <p className="km-hint">Anotação vazia. Toque em <strong>Editar</strong> para escrever.</p>}
+          </article> : <div className="editor-card"><input className="title-input" value={title} onChange={edit(setTitle)} placeholder="Título da anotação"/><div className="editor-meta"><span className={`save-status ${saveStatus}`}>{saveStatus === 'error' ? <><TriangleAlert size={12}/> Não foi possível salvar neste navegador</> : saveStatus === 'pending' ? <><LoaderCircle className="spin" size={12}/> Salvando…</> : saveStatus === 'saved' ? <><CircleCheck size={12}/> Salvo automaticamente</> : <><span className="green-dot"/> Salvamento automático</>}</span><span>{draft.length.toLocaleString('pt-BR')} caracteres</span></div>
+            <NoteEditor key={editorKey} initialDoc={doc} onChange={onDocChange}/>
+            <div className="editor-footer"><span>Digite "/" para escolher um bloco. Salvo sozinho enquanto você escreve.</span><button className="button primary" disabled={busy || draft.trim().length < 30} onClick={analyze}>{busy ? <><LoaderCircle className="spin" size={16}/> Analisando...</> : <><Sparkles size={16}/> Organizar com IA</>}</button></div></div>}
           {notes.length > 0 && <div className="panel mobile-notes"><h3>Anotações salvas</h3>{notes.map(n => <div className={`note-link ${activeId === n.id ? 'selected' : ''}`} key={n.id}><button onClick={() => loadNote(n)}><span className="note-dot"/><span>{n.title}</span></button><button className="delete-note" title="Excluir" aria-label={`Excluir ${n.title}`} onClick={() => removeNote(n.id)}><Trash2 size={15}/></button></div>)}</div>}
           <div className="privacy-note"><Check size={15}/> As anotações ficam salvas neste navegador. Faça um backup em Ajustes de vez em quando. Não use informações pessoais ou dados identificáveis de pacientes.</div>
         </section>}

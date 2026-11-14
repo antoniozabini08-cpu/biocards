@@ -126,3 +126,27 @@ export const sampleNotes = [
     }
   }
 ];
+
+// Versão em blocos da anotação de exemplo, para mostrar o editor estilo Notion.
+const t = (text, marks) => ({ type: 'text', text, ...(marks ? { marks } : {}) });
+const p = (...content) => ({ type: 'paragraph', content });
+const li = (...content) => ({ type: 'listItem', content: [p(...content)] });
+export const sampleDoc = {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: { level: 2 }, content: [t('Produção')] },
+    p(t('A insulina é um hormônio produzido pelas '), t('células beta', [{ type: 'bold' }]), t(' das ilhotas pancreáticas.')),
+    { type: 'bulletList', content: [li(t('Após uma refeição, o aumento da glicemia estimula sua secreção.'))] },
+    { type: 'heading', attrs: { level: 2 }, content: [t('Mecanismo de ação')] },
+    { type: 'orderedList', attrs: { start: 1 }, content: [
+      li(t('Nos tecidos muscular e adiposo, a insulina ativa a via PI3K/Akt.')),
+      li(t('A via promove a translocação do transportador GLUT4 para a membrana plasmática.')),
+      li(t('Isso aumenta a captação de glicose pelas células.'))
+    ] },
+    { type: 'horizontalRule' },
+    { type: 'details', attrs: { open: false }, content: [
+      { type: 'detailsSummary', content: [t('Resistência à insulina')] },
+      { type: 'detailsContent', content: [p(t('Na resistência à insulina, a resposta intracelular ao hormônio está prejudicada, reduzindo a eficiência desse processo.'))] }
+    ] }
+  ]
+};
