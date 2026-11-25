@@ -80,41 +80,86 @@ ${note}`;
 // Texto completo enviado ao Gemini (exportado para testes e para estimar o tamanho).
 export const buildRequestText = (note, candidates = []) => buildPrompt(note) + (candidates.length ? linkingInstructions(candidates) : '');
 
-export async function analyzeNote(note, { apiKey, model = DEFAULT_MODEL, context = [] } = {}) {
+// Modelo usado como reserva quando o escolhido está sobrecarregado.
+export const FALLBACK_MODEL = 'gemini-2.5-flash-lite';
+const RETRY_WAITS = [2000, 5000]; // espera antes da 2ª e da 3ª tentativa
+const TRANSIENT = new Set([500, 503, 504]); // sobrecarga ou falha temporária do Google
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Uma chamada ao Gemini. Devolve { response, data } ou lança erro de rede.
+async function callGemini(body, apiKey, model) {
+  let response;
+  try {
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body
+    });
+  } catch {
+    throw new Error('Não foi possível falar com o Gemini. Verifique sua conexão com a internet.');
+  }
+  const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
+
+// Erros que não adianta repetir viram mensagens claras em português.
+function permanentError(status, data, model) {
+  const message = data?.error?.message || `Erro ${status}`;
+  if (status === 400 && /api key/i.test(message)) return new Error('Chave Gemini inválida. Confira a chave em Ajustes.');
+  if (status === 403) return new Error('A chave não tem permissão para usar a Gemini API. Confira a chave em Ajustes.');
+  if (status === 404) return new Error(`Modelo "${model}" não encontrado. Escolha outro em Ajustes.`);
+  if (status === 429) {
+    const delay = (data?.error?.details || []).find(d => d.retryDelay)?.retryDelay;
+    const secs = delay ? Math.ceil(parseFloat(delay)) : null;
+    return new Error(`Limite de uso da Gemini API atingido${secs ? `. Tente de novo em cerca de ${secs} s` : '. Aguarde um pouco e tente novamente'}. No plano gratuito há limite de chamadas por minuto e por dia.`);
+  }
+  return new Error(`O Gemini recusou a solicitação: ${message}`);
+}
+
+// Tenta de novo quando o Gemini está sobrecarregado (503) ou com falha temporária
+// (500/504): até 3 vezes no modelo escolhido e, se continuar, no modelo reserva.
+async function requestWithRetry(body, { apiKey, model, onStatus }) {
+  const models = model === FALLBACK_MODEL ? [model] : [model, FALLBACK_MODEL];
+  let last = null;
+  for (const m of models) {
+    for (let attempt = 0; attempt <= RETRY_WAITS.length; attempt++) {
+      if (attempt > 0) {
+        const ms = RETRY_WAITS[attempt - 1];
+        onStatus?.({ kind: 'retry', model: m, attempt: attempt + 1, total: RETRY_WAITS.length + 1, seconds: ms / 1000 });
+        await wait(ms);
+      } else if (m !== model) {
+        onStatus?.({ kind: 'switching', model: m, original: model });
+      }
+      const { response, data } = await callGemini(body, apiKey, m);
+      if (response.ok) return { data, modelUsed: m };
+      if (!TRANSIENT.has(response.status)) throw permanentError(response.status, data, m);
+      last = response.status;
+    }
+  }
+  const tries = models.length * (RETRY_WAITS.length + 1);
+  throw new Error(last === 503
+    ? `O Gemini está sobrecarregado agora. É um problema temporário do lado do Google, não da sua chave nem do app. Tentamos ${tries} vezes, inclusive com o modelo ${FALLBACK_MODEL}. Aguarde alguns minutos e tente de novo.`
+    : `O Gemini está com uma falha temporária (erro ${last}). Tentamos ${tries} vezes. Aguarde alguns minutos e tente de novo.`);
+}
+
+export async function analyzeNote(note, { apiKey, model = DEFAULT_MODEL, context = [], onStatus } = {}) {
   const text = String(note || '').trim();
   if (text.length < 30) throw new Error('Escreva uma anotação com pelo menos 30 caracteres.');
   if (text.length > 30000) throw new Error('Anotação muito extensa para este protótipo. Divida em partes menores.');
   if (!apiKey) throw new Error('Informe sua chave Gemini em Ajustes para analisar anotações.');
   if (!navigator.onLine) throw new Error('Sem conexão com a internet. A análise pela IA precisa estar online.');
 
-  let response;
-  try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: buildRequestText(text, context) }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: buildSchema(context.length > 0),
-          temperature: 0.2,
-          maxOutputTokens: 16384
-        }
-      })
-    });
-  } catch {
-    throw new Error('Não foi possível falar com o Gemini. Verifique sua conexão com a internet.');
-  }
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = data?.error?.message || `Erro ${response.status}`;
-    if (response.status === 400 && /api key/i.test(message)) throw new Error('Chave Gemini inválida. Confira a chave em Ajustes.');
-    if (response.status === 403) throw new Error('A chave não tem permissão para usar a Gemini API. Confira a chave em Ajustes.');
-    if (response.status === 404) throw new Error(`Modelo "${model}" não encontrado. Escolha outro em Ajustes.`);
-    if (response.status === 429) throw new Error('Limite de uso da Gemini API atingido. Aguarde um pouco e tente novamente.');
-    throw new Error(`O Gemini recusou a solicitação: ${message}`);
-  }
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: buildRequestText(text, context) }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: buildSchema(context.length > 0),
+      temperature: 0.2,
+      maxOutputTokens: 16384
+    }
+  });
+  const { data, modelUsed } = await requestWithRetry(body, { apiKey, model, onStatus });
+  if (modelUsed !== model) onStatus?.({ kind: 'fallback', model: modelUsed, original: model });
 
   const candidate = data?.candidates?.[0];
   const raw = (candidate?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');

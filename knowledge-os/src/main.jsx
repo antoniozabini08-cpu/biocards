@@ -270,17 +270,25 @@ function App() {
   };
   const clearKey = () => { setKeyDraft(''); store.remove('ko_gemini_key'); setApiKey(''); setSavedMsg('Chave removida deste navegador.'); setTimeout(() => setSavedMsg(''), 3000); };
 
+  // Progresso da IA (novas tentativas, troca de modelo) e aviso depois da análise.
+  const [aiStatus, setAiStatus] = useState('');
+  const [aiNotice, setAiNotice] = useState('');
+  const onAiStatus = (st) => {
+    if (st.kind === 'retry') setAiStatus(`Gemini sobrecarregado. Nova tentativa ${st.attempt} de ${st.total} em ${st.seconds} s…`);
+    else if (st.kind === 'switching') setAiStatus(`Tentando com o modelo ${st.model}…`);
+    else if (st.kind === 'fallback') setAiNotice(`O modelo ${st.original} estava sobrecarregado, então esta análise foi feita com o ${st.model}, que é mais leve. Se quiser, analise de novo mais tarde.`);
+  };
   const analyze = async () => {
     if (!apiKey) { setError('Informe sua chave Gemini em Ajustes para analisar anotações.'); setTab('settings'); return; }
     // Salva antes de chamar a IA: a nota passa a existir (com id) mesmo se a análise falhar.
     dirty.current = true;
     const id = saveNow();
     const text = live.current.draft;
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setAiStatus(''); setAiNotice('');
     try {
       // Conceitos das outras anotações vão na mesma chamada, para a nota nova se ligar a elas.
       const context = selectCandidates(buildConceptIndex(live.current.notes, id), text);
-      const r = await analyzeNote(text, { apiKey, model, context });
+      const r = await analyzeNote(text, { apiKey, model, context, onStatus: onAiStatus });
       // Usa a versão mais recente da nota (o texto pode ter sido editado durante a análise).
       const latest = live.current.notes.find(n => n.id === id) || { id, title: live.current.title.trim() || 'Anotação sem título', text };
       const item = { ...latest, result: r, analyzedText: text, updated: new Date().toISOString() };
@@ -289,7 +297,7 @@ function App() {
       setNotes(next);
       if (live.current.activeId === id) { showResult(r); setTab('map'); setIsSample(false); }
     } catch (e) { setError(e.message); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setAiStatus(''); }
   };
 
   const selectFromList = (id) => {
@@ -326,6 +334,8 @@ function App() {
         {!storageOk && <div className="error-banner storage-banner"><TriangleAlert size={18}/><div><strong>Este navegador não está deixando o app salvar</strong><p>Suas anotações vão se perder ao fechar. Isso costuma acontecer em janela anônima, quando o arquivo é aberto por um visualizador (WhatsApp, Gmail, gerenciador de arquivos) ou com cookies bloqueados. Abra o app direto no Chrome ou no Edge, fora da janela anônima, e baixe um backup agora.</p><div className="banner-actions"><button className="button primary small" onClick={exportBackup}><Download size={14}/> Baixar backup agora</button><button className="button secondary small" onClick={() => setTab('settings')}>Mais detalhes</button></div></div></div>}
         {recoveryNotice && <div className="setup-banner"><Lightbulb size={18}/><div><strong>Algumas anotações salvas estavam corrompidas</strong><p>Recuperamos tudo o que foi possível. Uma cópia do conteúdo original foi guardada neste navegador ({recoveryNotice}).</p><div className="banner-actions"><button className="button secondary small" onClick={() => setRecoveryNotice(null)}>Entendi</button></div></div></div>}
         {error && <div className="error-banner"><X size={17}/>{error}</div>}
+        {busy && aiStatus && <div className="setup-banner ai-status" role="status"><LoaderCircle className="spin" size={18}/><div><strong>Analisando…</strong><p>{aiStatus}</p></div></div>}
+        {aiNotice && !busy && <div className="setup-banner" role="status"><Lightbulb size={18}/><div><strong>Análise feita com o modelo reserva</strong><p>{aiNotice}</p><div className="banner-actions"><button className="button secondary small" onClick={() => setAiNotice('')}>Entendi</button></div></div></div>}
 
         {tab === 'editor' && <section className="editor-view">
           <div className="page-heading note-heading"><div><div className="eyebrow">{noteMode === 'read' ? 'LEITURA' : 'CAPTURA DE CONHECIMENTO'}</div><h1>{noteMode === 'read' ? 'Sua anotação' : 'Suas anotações'}</h1><p>{noteMode === 'read' ? 'Do jeito que você escreveu. Toque nas listas expansíveis para abrir.' : 'Escreva em blocos: títulos, listas e listas expansíveis. A IA organiza os conceitos.'}</p></div>
